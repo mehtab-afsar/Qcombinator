@@ -24,6 +24,7 @@ import type { ActionDef } from '../../../types'
  */
 export const CONDUCT_CUSTOMER_INTERVIEWS: ActionDef = {
   id: 'conduct_customer_interviews',
+  program: 'P008',
   name: 'Conduct Customer Interviews',
   kind: 'oneoff',
   irreversible: false,

@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const SCORE_PRODUCT_MARKET_FIT: ActionDef = {
   id: 'score_product_market_fit',
+  program: 'P015',
   name: 'Score Product-Market Fit',
   kind: 'oneoff',
   irreversible: false,

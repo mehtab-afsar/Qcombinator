@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const APPROVE_MESSAGING: ActionDef = {
   id: 'approve_messaging',
+  program: 'P002',
   name: 'Approve Messaging',
   kind: 'oneoff',
   irreversible: false,

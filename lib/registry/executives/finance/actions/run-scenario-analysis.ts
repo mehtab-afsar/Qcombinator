@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const RUN_SCENARIO_ANALYSIS: ActionDef = {
   id: 'run_scenario_analysis',
+  program: 'P023',
   name: 'Run Scenario Analysis',
   kind: 'oneoff',
   irreversible: false,

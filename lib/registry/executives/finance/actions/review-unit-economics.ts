@@ -18,6 +18,7 @@ import type { ActionDef } from '../../../types'
  */
 export const REVIEW_UNIT_ECONOMICS: ActionDef = {
   id: 'review_unit_economics',
+  program: 'P023',
   name: 'Review Unit Economics',
   kind: 'oneoff',
   irreversible: false,

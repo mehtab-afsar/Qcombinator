@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const BUILD_FINANCIAL_MODEL: ActionDef = {
   id: 'build_financial_model',
+  program: 'P023',
   name: 'Build Financial Model',
   kind: 'oneoff',
   irreversible: false,

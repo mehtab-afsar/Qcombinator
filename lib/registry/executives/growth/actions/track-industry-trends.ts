@@ -17,6 +17,7 @@ import type { ActionDef } from '../../../types'
  */
 export const TRACK_INDUSTRY_TRENDS: ActionDef = {
   id: 'track_industry_trends',
+  program: 'P008',
   name: 'Track Industry Trends',
   kind: 'oneoff',
   irreversible: false,

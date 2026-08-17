@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const UPDATE_MARKET_REPORT: ActionDef = {
   id: 'update_market_report',
+  program: 'P008',
   name: 'Update Market Report',
   kind: 'oneoff',
   irreversible: false,

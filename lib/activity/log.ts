@@ -55,6 +55,7 @@ interface ActionLogRow {
   irreversible: boolean
   status: ActionStatus
   payload_hash: string | null
+  payload_ref: string | null
   request: unknown
   result: unknown
   approved_by: string | null
@@ -73,6 +74,7 @@ function toActionEntry(r: ActionLogRow): ActionLogEntry {
     irreversible: r.irreversible,
     status: r.status,
     payloadHash: r.payload_hash,
+    payloadRef: r.payload_ref ?? null,
     request: (r.request && typeof r.request === 'object' ? r.request : {}) as Record<string, unknown>,
     result: (r.result && typeof r.result === 'object' ? r.result : null) as Record<string, unknown> | null,
     approvedBy: r.approved_by,

@@ -14,6 +14,7 @@ import type { ActionDef } from '../../../types'
  */
 export const OPTIMIZE_SEO: ActionDef = {
   id: 'optimize_seo',
+  program: 'P003',
   name: 'Optimize SEO',
   kind: 'oneoff',
   irreversible: false,

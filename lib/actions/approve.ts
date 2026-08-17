@@ -15,6 +15,7 @@ import { getCurrentContract } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
 import { trackActionApproved, trackActionDeclined } from '@/lib/analytics'
 import { recordAttempt, type ActionLogEntry } from './log'
+import { deletePayload } from './payload-vault'
 
 /**
  * How long an approval stays valid.
@@ -59,6 +60,7 @@ interface StoredEntry {
   provider: string | null
   status: string
   payload_hash: string | null
+  payload_ref: string | null
   created_at: string
 }
 
@@ -69,7 +71,7 @@ async function loadPending(
 ): Promise<StoredEntry> {
   const { data, error } = await admin
     .from('action_log')
-    .select('id, founder_id, program_id, execution_id, action_id, provider, status, payload_hash, created_at')
+    .select('id, founder_id, program_id, execution_id, action_id, provider, status, payload_hash, payload_ref, created_at')
     .eq('id', entryId)
     // Scoped to the founder in the QUERY, not checked afterwards: this runs on a service-role
     // client, which bypasses RLS, so the tenancy boundary has to be here explicitly.
@@ -149,6 +151,9 @@ export async function approveAction(
     // The SAME hash as the row being approved — this is what links the sequence and lets a
     // later execution prove which payload consent was given for.
     payloadHash: args.payloadHash,
+    // Carried forward the same way — execution needs this row's OWN payload_ref to find the
+    // real content, not just the pending row's (append-only: it's a new row, not an update).
+    payloadRef: entry.payload_ref,
     result: { approvedEntryId: entry.id },
   })
 }
@@ -174,7 +179,7 @@ export async function declineAction(
   // one who approves. Counting only approvals would understate retention and flatter the model.
   trackActionDeclined(args.founderId, { actionId: entry.action_id })
 
-  return recordAttempt(admin, {
+  const declined = await recordAttempt(admin, {
     founderId: args.founderId,
     actionId: entry.action_id,
     irreversible: true,
@@ -185,4 +190,17 @@ export async function declineAction(
     payloadHash: entry.payload_hash,
     result: { declinedEntryId: entry.id, declinedBy: args.declinedBy },
   })
+
+  // Declined content has no future use — clean it up now rather than waiting for the TTL
+  // sweep. Best-effort: the founder's decline is already recorded regardless of this outcome,
+  // and an orphaned secret is exactly what the defensive sweep exists to catch.
+  if (entry.payload_ref) {
+    try {
+      await deletePayload(admin, entry.payload_ref)
+    } catch (err) {
+      log.warn('payload cleanup failed after decline', { entryId: entry.id, err: (err as Error)?.message })
+    }
+  }
+
+  return declined
 }

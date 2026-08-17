@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const SCHEDULE_ONBOARDING: ActionDef = {
   id: 'schedule_onboarding',
+  program: 'P006',
   name: 'Schedule Onboarding',
   kind: 'oneoff',
   irreversible: false,

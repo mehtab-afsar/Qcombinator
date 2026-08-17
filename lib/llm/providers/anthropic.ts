@@ -138,7 +138,11 @@ export class AnthropicProvider implements LLMProvider {
     // context_management field), even though both have the .content/.stop_reason shape this
     // method actually reads — normalize to that shape right where the branch happens so
     // withRetry<T> isn't asked to infer a T that unifies two structurally-different types.
-    type MinimalResponse = { content: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>; stop_reason?: string | null }
+    type MinimalResponse = {
+      content: Array<{ type: string; text?: string; id?: string; name?: string; input?: unknown }>
+      stop_reason?: string | null
+      usage?: { input_tokens: number; output_tokens: number }
+    }
 
     try {
       const response = await withRetry((): Promise<MinimalResponse> => needsPdfBeta(messages)
@@ -153,7 +157,10 @@ export class AnthropicProvider implements LLMProvider {
           toolCall = { id: block.id ?? '', name: block.name ?? '', args: (block.input ?? {}) as Record<string, unknown> }
         }
       }
-      return { text, toolCall, stopReason: response.stop_reason ?? undefined }
+      const usage = response.usage
+        ? { inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens }
+        : undefined
+      return { text, toolCall, stopReason: response.stop_reason ?? undefined, usage, model }
     } catch (err) {
       if (err instanceof Anthropic.RateLimitError)
         throw new ClaudeError('Anthropic rate limit exceeded — please try again later', 429)
@@ -173,7 +180,7 @@ export class AnthropicProvider implements LLMProvider {
     tools?: ToolDefinition[]
   }): AsyncGenerator<
     | { type: 'delta'; text: string }
-    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
+    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string; usage?: LLMChatResponse['usage']; model?: string }
   > {
     const { messages, modelTier, maxTokens, temperature, tools } = params
     const model = MODEL_MAP[modelTier]
@@ -193,6 +200,7 @@ export class AnthropicProvider implements LLMProvider {
 
     let toolCall: LLMChatResponse['toolCall'] = null
     let stopReason: string | undefined
+    let usage: LLMChatResponse['usage']
 
     try {
       for await (const event of stream) {
@@ -202,6 +210,9 @@ export class AnthropicProvider implements LLMProvider {
       }
       const final = await stream.finalMessage()
       stopReason = final.stop_reason ?? undefined
+      if (final.usage) {
+        usage = { inputTokens: final.usage.input_tokens, outputTokens: final.usage.output_tokens }
+      }
       for (const block of final.content) {
         if (block.type === 'tool_use') {
           toolCall = { id: block.id, name: block.name, args: block.input as Record<string, unknown> }
@@ -215,6 +226,6 @@ export class AnthropicProvider implements LLMProvider {
       throw err
     }
 
-    yield { type: 'done', toolCall, stopReason }
+    yield { type: 'done', toolCall, stopReason, usage, model }
   }
 }

@@ -17,6 +17,7 @@ import type { ActionDef } from '../../../types'
  */
 export const MONITOR_HEALTH_SCORES: ActionDef = {
   id: 'monitor_health_scores',
+  program: 'P006',
   name: 'Monitor Health Scores',
   kind: 'oneoff',
   irreversible: false,

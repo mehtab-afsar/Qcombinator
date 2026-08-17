@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const TRAIN_SALES_TEAM: ActionDef = {
   id: 'train_sales_team',
+  program: 'P005',
   name: 'Train Sales Team',
   kind: 'oneoff',
   irreversible: false,

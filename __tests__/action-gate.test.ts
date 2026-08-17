@@ -15,6 +15,9 @@ jest.mock('@/lib/actions/log', () => {
   const actual = jest.requireActual('@/lib/actions/log')
   return { ...actual, recordAttempt: jest.fn() }
 })
+// The gate's own concern is irreversible → pending_approval → never executed — not where the
+// real content ends up. Stubbed so these tests don't need a real vault/admin.rpc.
+jest.mock('@/lib/actions/payload-vault', () => ({ storePayload: jest.fn().mockResolvedValue('vault-ref-1') }))
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { generateAction, parseActionPayload, ActionGenerationError } from '@/lib/actions/generate'
@@ -61,6 +64,9 @@ describe('the gate — irreversible Actions never execute', () => {
     expect(recorded.provider).toBe('gmail')
     // The whole point: no execution happened and no result was produced.
     expect(recorded.result).toBeUndefined()
+    // The real content has to live SOMEWHERE for execution to ever send it — see
+    // lib/actions/payload-vault.ts. Reversible actions never call storePayload at all (below).
+    expect(recorded.payloadRef).toBe('vault-ref-1')
   })
 
   it('a reversible internal Action runs without approval (ADR-002/ADR-004)', async () => {
@@ -73,6 +79,8 @@ describe('the gate — irreversible Actions never execute', () => {
     const recorded = m(recordAttempt).mock.calls[0][1]
     expect(recorded.status).toBe('executed')
     expect(recorded.irreversible).toBe(false)
+    // Only irreversible Actions ever need somewhere for real content to live pending approval.
+    expect(recorded.payloadRef).toBeUndefined()
   })
 
   it('a reversible internal Action\'s real analysis is kept, not discarded (Gap B)', async () => {

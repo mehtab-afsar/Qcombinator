@@ -32,6 +32,10 @@ export interface LLMChatResponse {
    * where all five assets were silently persisted mid-sentence).
    */
   stopReason?: string;
+  /** Token counts from the provider, when it reports them. Optional: not every provider does. */
+  usage?: { inputTokens: number; outputTokens: number };
+  /** Concrete model id actually used (e.g. 'claude-sonnet-4-5') — present alongside usage. */
+  model?: string;
 }
 
 /** Internal capability tier — provider maps this to a concrete model ID */
@@ -72,6 +76,6 @@ export interface LLMProvider {
     // own docstring above) — a streamed asset must be checked for it exactly like a
     // non-streamed one; persisting a cut-off document was the trial-run-2 bug that rule exists
     // to prevent, and streaming must not reopen it.
-    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string }
+    | { type: 'done'; toolCall: LLMChatResponse['toolCall']; stopReason?: string; usage?: LLMChatResponse['usage']; model?: string }
   >
 }

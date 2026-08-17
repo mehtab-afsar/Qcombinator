@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const REVIEW_WIN_LOSS_FEEDBACK: ActionDef = {
   id: 'review_win_loss_feedback',
+  program: 'P005',
   name: 'Review Win/Loss Feedback',
   kind: 'oneoff',
   irreversible: false,

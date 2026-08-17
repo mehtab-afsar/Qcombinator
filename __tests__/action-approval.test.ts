@@ -66,6 +66,11 @@ describe('approval — the happy path records consent but does NOT execute', () 
     // Approving is not sending. Nothing here says 'executed'.
     expect(recorded.status).not.toBe('executed')
   })
+
+  it('carries the pending row\'s payload_ref forward — execution needs THIS row\'s own ref', async () => {
+    await approveAction(fakeAdmin(pendingRow({ payload_ref: 'vault-ref-1' })), args)
+    expect(m(recordAttempt).mock.calls[0][1].payloadRef).toBe('vault-ref-1')
+  })
 })
 
 describe('approval — every denial path', () => {

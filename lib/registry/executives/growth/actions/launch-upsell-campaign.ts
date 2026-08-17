@@ -28,6 +28,7 @@ import type { ActionDef } from '../../../types'
  */
 export const LAUNCH_UPSELL_CAMPAIGN: ActionDef = {
   id: 'launch_upsell_campaign',
+  program: 'P006',
   name: 'Launch Upsell Campaign',
   kind: 'oneoff',
   irreversible: false,

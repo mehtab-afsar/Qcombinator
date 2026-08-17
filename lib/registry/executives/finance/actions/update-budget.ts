@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const UPDATE_BUDGET: ActionDef = {
   id: 'update_budget',
+  program: 'P023',
   name: 'Update Budget',
   kind: 'oneoff',
   irreversible: false,

@@ -21,8 +21,23 @@ import { getConnector } from '@/lib/connectors/registry'
 import { resolveGrant } from '@/lib/connectors/grants'
 import { RecipientBlockedError, ChannelBlockedError } from '@/lib/connectors/allowlist'
 import { recordAttempt, AlreadyExecutedError, type ActionLogEntry } from './log'
-import type { ActionPayload } from './payload'
 import { hashPayload } from './payload'
+import { resolvePayload, deletePayload } from './payload-vault'
+import { VaultError } from '@/lib/connectors/vault'
+
+/**
+ * Delete the transient payload once a terminal outcome — executed, failed, or unknown — is
+ * recorded. Best-effort: the outcome is already durably recorded regardless of this succeeding,
+ * and an orphaned vault secret is exactly what the defensive TTL sweep exists to catch. Never
+ * lets cleanup failure mask the real outcome.
+ */
+async function cleanupPayload(admin: SupabaseClient, payloadRef: string, actionId: string): Promise<void> {
+  try {
+    await deletePayload(admin, payloadRef)
+  } catch (err) {
+    log.warn('payload cleanup failed after execution', { actionId, err: (err as Error)?.message })
+  }
+}
 
 export class ExecutionError extends Error {
   readonly code: string
@@ -38,8 +53,10 @@ export interface ExecuteArgs {
   actionId: string
   programId: string | null
   executionId: string | null
-  /** The payload to send. Its hash MUST match what was approved. */
-  payload: ActionPayload
+  /** The Vault ref (ActionLogEntry.payloadRef) holding the real payload — resolved inside this
+   *  function, never passed in raw. Nothing outside execute.ts and payload-vault.ts should ever
+   *  hold the real content in memory. */
+  payloadRef: string
   /** The hash recorded on the approval — proof of what the founder actually consented to. */
   approvedHash: string
 }
@@ -57,9 +74,22 @@ export async function executeApprovedAction(
 ): Promise<ActionLogEntry> {
   const action = getAction(args.actionId)
 
+  // 0. Resolve the real content. Nothing before this point in the whole product has ever held
+  //    it — action_log only ever stored a hash + redacted metadata. Fail closed on any vault
+  //    problem: a missing or unreadable payload is never a reason to guess or proceed anyway.
+  let payload
+  try {
+    payload = await resolvePayload(admin, args.payloadRef)
+  } catch (err) {
+    if (err instanceof VaultError) {
+      throw new ExecutionError('payload_unavailable', 'The prepared content could not be retrieved.')
+    }
+    throw err
+  }
+
   // 1. The payload must be the one that was approved. Recomputed here rather than trusted:
   //    an approval is consent to a specific message, not to an action id.
-  if (hashPayload(args.payload) !== args.approvedHash) {
+  if (hashPayload(payload) !== args.approvedHash) {
     throw new ExecutionError('payload_changed', 'This action changed after it was approved.')
   }
 
@@ -107,7 +137,8 @@ export async function executeApprovedAction(
       programId: args.programId,
       executionId: args.executionId,
       provider: action.connector,
-      payload: args.payload,
+      payload,
+      payloadRef: args.payloadRef,
       result: { phase: 'reserved' },
     })
   } catch (err) {
@@ -122,10 +153,10 @@ export async function executeApprovedAction(
   try {
     outcome = await connector.send(grant, {
       idempotencyKey: args.approvedHash,
-      recipients: args.payload.recipients ?? [],
-      subject: args.payload.subject ?? '',
-      body: args.payload.body ?? '',
-      channel: args.payload.channel,
+      recipients: payload.recipients ?? [],
+      subject: payload.subject ?? '',
+      body: payload.body ?? '',
+      channel: payload.channel,
     })
   } catch (err) {
     // The allowlist refusing outside production is the ONE case that must be loud and obvious —
@@ -140,12 +171,14 @@ export async function executeApprovedAction(
         actionId: args.actionId, blockedChannel: err.channel,
       })
     }
-    return recordAttempt(admin, {
+    const failed = await recordAttempt(admin, {
       founderId: args.founderId, actionId: args.actionId, irreversible: true, status: 'failed',
       programId: args.programId, executionId: args.executionId, provider: action.connector,
       payloadHash: args.approvedHash,
       result: { error: (err as Error)?.message ?? 'send failed', reservedId: reserved.id },
     })
+    await cleanupPayload(admin, args.payloadRef, args.actionId)
+    return failed
   }
 
   // Record what actually happened. `unknown` is a first-class outcome, not a failure.
@@ -162,7 +195,7 @@ export async function executeApprovedAction(
     outcome: status,
   })
 
-  return recordAttempt(admin, {
+  const settled = await recordAttempt(admin, {
     founderId: args.founderId,
     actionId: args.actionId,
     irreversible: true,
@@ -175,4 +208,9 @@ export async function executeApprovedAction(
       ? { providerId: outcome.providerId, reservedId: reserved.id }
       : { reason: outcome.reason, reservedId: reserved.id },
   })
+  // Every branch here is a genuinely terminal outcome — even 'unknown' has finished attempting
+  // to send, so the transient copy has served its purpose (a reconciliation pass, if one is ever
+  // built, would use the provider/idempotency key on the log row, not the original payload).
+  await cleanupPayload(admin, args.payloadRef, args.actionId)
+  return settled
 }

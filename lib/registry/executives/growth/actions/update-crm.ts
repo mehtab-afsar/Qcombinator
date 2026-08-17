@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const UPDATE_CRM: ActionDef = {
   id: 'update_crm',
+  program: 'P005',
   name: 'Update CRM',
   kind: 'oneoff',
   irreversible: false,

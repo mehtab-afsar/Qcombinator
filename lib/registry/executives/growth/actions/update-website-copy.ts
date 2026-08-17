@@ -22,6 +22,7 @@ import type { ActionDef } from '../../../types'
  */
 export const UPDATE_WEBSITE_COPY: ActionDef = {
   id: 'update_website_copy',
+  program: 'P002',
   name: 'Update Website Copy',
   kind: 'oneoff',
   irreversible: false,

@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const COLLECT_FEEDBACK: ActionDef = {
   id: 'collect_feedback',
+  program: 'P006',
   name: 'Collect Feedback',
   kind: 'oneoff',
   irreversible: false,

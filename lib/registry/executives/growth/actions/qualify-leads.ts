@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const QUALIFY_LEADS: ActionDef = {
   id: 'qualify_leads',
+  program: 'P005',
   name: 'Qualify Leads',
   kind: 'oneoff',
   irreversible: false,

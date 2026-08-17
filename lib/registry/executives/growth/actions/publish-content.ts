@@ -18,6 +18,7 @@ import type { ActionDef } from '../../../types'
  */
 export const PUBLISH_CONTENT: ActionDef = {
   id: 'publish_content',
+  program: 'P003',
   name: 'Publish Content',
   kind: 'oneoff',
   irreversible: false,

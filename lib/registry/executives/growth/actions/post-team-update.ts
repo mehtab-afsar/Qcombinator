@@ -19,6 +19,7 @@ import type { ActionDef } from '../../../types'
  */
 export const POST_TEAM_UPDATE: ActionDef = {
   id: 'post_team_update',
+  program: 'P001',
   name: 'Post Team Update',
   kind: 'oneoff',
   irreversible: true,

@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const CONDUCT_QBR: ActionDef = {
   id: 'conduct_qbr',
+  program: 'P006',
   name: 'Conduct QBR',
   kind: 'oneoff',
   irreversible: false,

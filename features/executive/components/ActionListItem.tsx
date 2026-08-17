@@ -12,7 +12,7 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, X, Clock, Circle, ChevronDown } from 'lucide-react'
-import { bdr, ink, muted, bg, amber, red, green } from '@/lib/constants/colors'
+import { bdr, ink, muted, bg, amber, red, green, blue } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { Button } from '@/features/shared/components/Button'
@@ -87,6 +87,78 @@ export function statusLook(status: ActionSummary['status']): { icon: React.React
   }
 }
 
+interface RealPayload {
+  recipients?: ReadonlyArray<{ email: string; name?: string }>
+  subject?: string
+  body?: string
+  channel?: string
+}
+
+/** Fetched on demand only — never pre-loaded — so the real content (subject/body/addresses)
+ *  doesn't reach the browser until the founder actually asks to review it. Server-side ownership
+ *  check happens in the route; this is purely "did the founder click to look." */
+function ReviewContent({ entryId }: { entryId: string }) {
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [payload, setPayload] = useState<RealPayload | null>(null)
+
+  async function load() {
+    setState('loading')
+    try {
+      const res = await fetch(`/api/actions/${entryId}/payload`)
+      const data = await res.json()
+      if (!res.ok) { setState('error'); return }
+      setPayload(data.payload)
+      setState('idle')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (!payload && state === 'idle') {
+    return (
+      <button
+        onClick={() => void load()}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+          padding: 0, marginTop: 10, cursor: 'pointer', color: blue, fontSize: 12, fontFamily: 'inherit',
+        }}
+      >
+        Review the actual message <ChevronDown size={12} />
+      </button>
+    )
+  }
+
+  if (state === 'loading') {
+    return <p style={{ color: muted, fontSize: 12, marginTop: 10 }}>Loading…</p>
+  }
+
+  if (state === 'error' || !payload) {
+    return <p style={{ color: red, fontSize: 12, marginTop: 10 }}>Could not load the message content.</p>
+  }
+
+  return (
+    <div style={{
+      marginTop: 10, padding: 12, borderRadius: radius.md, border: `1px solid ${bdr}`,
+      background: bg, fontSize: 13,
+    }}>
+      {payload.recipients && payload.recipients.length > 0 && (
+        <p style={{ color: muted, margin: '0 0 8px' }}>
+          <strong style={{ color: ink }}>To:</strong>{' '}
+          {payload.recipients.map(r => r.name ? `${r.name} <${r.email}>` : r.email).join(', ')}
+        </p>
+      )}
+      {payload.subject && (
+        <p style={{ color: ink, fontWeight: 600, margin: '0 0 8px' }}>{payload.subject}</p>
+      )}
+      {payload.body && (
+        <div style={{ color: muted, fontFamily: FONT_SERIF, lineHeight: 1.6 }}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.body}</ReactMarkdown>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ActionCard(
   { entry, busy, onDecide }:
   { entry: PendingAction; busy: boolean; onDecide: (d: 'approve' | 'decline') => void },
@@ -107,14 +179,18 @@ export function ActionCard(
         )}
       </div>
 
-      {/* Counts and domains, never addresses — the log stores none, so this cannot show any. */}
+      {/* Counts and domains here — never addresses; the log itself stores none. The real
+          content, addresses included, is one click away via ReviewContent below, fetched fresh
+          from the vault rather than ever living in this component's own props. */}
       <p style={{ color: muted, fontSize: 13, marginTop: 8, lineHeight: 1.6 }}>
         {count === 0
           ? 'No recipients — your team could not find contacts to reach. Nothing will send.'
           : `${count} recipient${count === 1 ? '' : 's'}${domains.length ? ` at ${domains.join(', ')}` : ''}.`}
       </p>
 
-      <p style={{ color: hours < 4 ? amber : muted, fontSize: 12, marginTop: 6 }}>
+      {count > 0 && <ReviewContent entryId={entry.id} />}
+
+      <p style={{ color: hours < 4 ? amber : muted, fontSize: 12, marginTop: 10 }}>
         {hours > 0
           ? `Expires in about ${hours} hour${hours === 1 ? '' : 's'}.`
           : 'Expires shortly — after that your team will prepare a fresh one.'}

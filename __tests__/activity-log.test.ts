@@ -9,7 +9,7 @@ import type { ActionLogEntry } from '@/lib/actions/log'
 function entry(overrides: Partial<ActionLogEntry>): ActionLogEntry {
   return {
     id: 'row1', founderId: 'f1', programId: 'prog1', executionId: 'run1', actionId: 'interview_customers',
-    provider: null, irreversible: true, status: 'pending_approval', payloadHash: null,
+    provider: null, irreversible: true, status: 'pending_approval', payloadHash: null, payloadRef: null,
     request: {}, result: null, approvedBy: null, approvedAt: null, createdAt: '2026-07-21T12:00:00Z',
     ...overrides,
   }

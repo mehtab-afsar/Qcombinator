@@ -19,6 +19,7 @@ import type { ActionDef } from '../../../types'
  */
 export const LAUNCH_CAMPAIGN: ActionDef = {
   id: 'launch_campaign',
+  program: 'P003',
   name: 'Launch Campaign',
   kind: 'oneoff',
   irreversible: false,

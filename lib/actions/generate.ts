@@ -18,10 +18,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { getAction, type ActionId, type ProgramId } from '@/lib/registry'
 import type { ProgramInstance } from '@/lib/mandate/contract'
 import { composePrompt, type CompanyContext } from '@/lib/prompts/compose'
-import { routedCall } from '@/lib/llm/router'
+import { routedCall, type UsageContext } from '@/lib/llm/router'
 import { log } from '@/lib/logger'
 import type { ActionPayload } from './payload'
 import { recordAttempt, type ActionLogEntry } from './log'
+import { storePayload } from './payload-vault'
 
 /** One Claude call. Actions produce short payloads, not 2,000-word documents. */
 const TIMEOUT_MS = 90_000
@@ -43,7 +44,7 @@ export interface GenerateActionArgs {
   context: CompanyContext
 }
 
-async function callLLM(text: string): Promise<string> {
+async function callLLM(text: string, usageContext?: UsageContext): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const response = await Promise.race([
@@ -51,6 +52,7 @@ async function callLLM(text: string): Promise<string> {
         taskClass: 'reasoning',
         messages: [{ role: 'user', content: text }],
         overrides: { maxTokens: MAX_TOKENS, temperature: 0.3 },
+        usageContext,
       }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS) }),
     ])
@@ -127,9 +129,16 @@ export async function generateAction(
     executionId: args.executionId,
   })
 
+  const usageContext: UsageContext = {
+    founderId: args.founderId,
+    programId: args.program.id,
+    actionId: args.actionId,
+    executionId: args.executionId,
+  }
+
   let raw: string
   try {
-    raw = await callLLM(pkg.text)
+    raw = await callLLM(pkg.text, usageContext)
   } catch (first) {
     // Truncation is deterministic — the same prompt hits the same cap, so retrying just doubles
     // the spend. Only transient faults earn the one retry (the judge.ts lesson).
@@ -138,7 +147,7 @@ export async function generateAction(
     }
     log.warn('action generation retrying', { actionId: args.actionId, err: (first as Error)?.message })
     try {
-      raw = await callLLM(pkg.text)
+      raw = await callLLM(pkg.text, usageContext)
     } catch (second) {
       throw new ActionGenerationError(`Action '${args.actionId}' failed: ${(second as Error)?.message}`)
     }
@@ -151,6 +160,11 @@ export async function generateAction(
   // Irreversible → recorded and STOPPED. No execution path is reachable from here; the founder
   // approves through a separate route, and execution re-checks everything at that point.
   if (irreversible) {
+    // The real content (recipients/subject/body) has nowhere else to live — action_log itself
+    // only ever stores a hash + redacted metadata, by design (CLAUDE.md §3, no PII in logs).
+    // Without this, there would be nothing for the founder to review before approving, and
+    // nothing for execution to actually send. See lib/actions/payload-vault.ts.
+    const payloadRef = await storePayload(admin, args.founderId, payload)
     log.info('action prepared, awaiting approval', {
       actionId: args.actionId, programId: args.program.templateId, provider: action.connector,
     })
@@ -163,6 +177,7 @@ export async function generateAction(
       executionId: args.executionId,
       provider: action.connector ?? null,
       payload,
+      payloadRef,
     })
   }
 

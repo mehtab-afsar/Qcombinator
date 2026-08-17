@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const PRIORITIZE_FEATURES: ActionDef = {
   id: 'prioritize_features',
+  program: 'P015',
   name: 'Prioritize Features',
   kind: 'oneoff',
   irreversible: false,

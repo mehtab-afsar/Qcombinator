@@ -21,6 +21,7 @@ import type { ActionDef } from '../../../types'
  */
 export const APPROVE_DISCOUNTS: ActionDef = {
   id: 'approve_discounts',
+  program: 'P001',
   name: 'Approve Discounts',
   kind: 'oneoff',
   irreversible: false,

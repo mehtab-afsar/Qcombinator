@@ -2,8 +2,9 @@ import type { ProgramTemplate } from '../../../types'
 
 /**
  * P006 — Customer Success. Owned by the Growth executive, alongside P001
- * GTM, P002 Brand Strategy, P003 Demand Generation, P004 Sales Enablement
- * and P005 Customer Acquisition.
+ * GTM & Strategy, P002 Brand Strategy, P003 Demand Generation and P005
+ * Customer Acquisition & Sales Enablement (which absorbed P004 Sales
+ * Enablement on merge, Phase 10 Part 3).
  *
  * The sixth Program seeded — same shape as P001–P005, different values.
  * Nothing about the Registry, Composer, Actions engine or Connector registry

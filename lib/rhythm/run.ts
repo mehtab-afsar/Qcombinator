@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentContract } from '@/lib/mandate/contract'
-import { getProgram } from '@/lib/registry'
+import { getProgram, getAction } from '@/lib/registry'
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { BriefingError } from '@/lib/briefings/briefings'
@@ -25,7 +25,8 @@ import { RhythmError } from './errors'
 // Re-exported: `@/lib/rhythm/run` is the established public path for this type.
 export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
-import { AlreadyExecutedError } from '@/lib/actions/log'
+import { AlreadyExecutedError, latestPerAction } from '@/lib/actions/log'
+import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { generateAssetContent } from './judge'
 import { weekCycleKey } from './cycle-key'
@@ -79,6 +80,37 @@ function newStage(): StageStatus {
  */
 function actionsPhase(stage: StageStatus): { status: string; done: string[] } {
   return { status: stage.actions ?? 'pending', done: stage.actionsDone ?? [] }
+}
+
+/**
+ * AI SDR Milestone 1 — real chaining. When `actionId` declares `ActionDef.dependsOn`, look up
+ * that Action's own result within THIS execution and return it as a `CompanyContext` addition;
+ * otherwise return an empty object, so a spread at the call site is a no-op for every Action
+ * that doesn't chain (i.e. everything except the handful of AI SDR steps that opt in).
+ *
+ * Only ever reads a result that's actually there. A dependency still `pending_approval` (an
+ * irreversible Action, not yet approved) has no `result` yet — silently omitted rather than
+ * blocking or erroring, since Milestone 1 is scoped to fully-autonomous chains; Milestone 2
+ * covers the approval-pause case.
+ *
+ * Exported so this reads-from-`result` rule is unit-tested directly, matching resultSummary
+ * (app/api/actions/route.ts) rather than only reachable through the full runNextStep path.
+ */
+export async function dependencyContextFor(
+  admin: SupabaseClient,
+  founderId: string,
+  executionId: string,
+  actionId: string,
+): Promise<Pick<CompanyContext, 'dependencyResult'>> {
+  const dependsOn = getAction(actionId).dependsOn
+  if (!dependsOn) return {}
+
+  const entries = await latestPerAction(admin, founderId, executionId)
+  const entry = entries.find(e => e.actionId === dependsOn)
+  const text = entry?.result?.summary
+  if (typeof text !== 'string' || !text.trim()) return {}
+
+  return { dependencyResult: { actionId: dependsOn, label: getAction(dependsOn).name, text } }
 }
 
 /**
@@ -223,13 +255,16 @@ export async function runNextStep(
 
       if (nextActionId) {
         try {
+          // AI SDR Milestone 1 — a no-op spread for every Action except the handful that declare
+          // ActionDef.dependsOn (see dependencyContextFor's own docstring).
+          const chained = await dependencyContextFor(admin, run.founderId, run.id, nextActionId)
           await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
             executionId: run.id,
             activePrograms: contract.activePrograms,
-            context: baseContext,
+            context: { ...baseContext, ...chained },
           })
         } catch (err) {
           if (err instanceof AlreadyExecutedError) {

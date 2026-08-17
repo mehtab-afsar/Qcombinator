@@ -19,6 +19,7 @@ import type { ActionDef } from '../../../types'
  */
 export const TEST_NEW_PRICING: ActionDef = {
   id: 'test_new_pricing',
+  program: 'P001',
   name: 'Test New Pricing',
   kind: 'oneoff',
   irreversible: false,

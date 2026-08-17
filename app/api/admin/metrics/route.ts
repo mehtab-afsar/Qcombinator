@@ -15,7 +15,7 @@ export async function GET() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [ragResult, toolResult, qscoreResult, cacheResult, activityResult,
-         founderResult, qscoreAllResult, snapshotResult] = await Promise.all([
+         founderResult, qscoreAllResult, snapshotResult, aiUsageResult] = await Promise.all([
     supabaseAdmin.from('rag_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('tool_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('qscore_history').select('overall_score, data_source, created_at').gte('created_at', since),
@@ -31,6 +31,10 @@ export async function GET() {
       .order('calculated_at', { ascending: false }).limit(5000),
     // Metric snapshots for cohort scorer readiness
     supabaseAdmin.from('founder_metric_snapshots').select('user_id, sector, created_at'),
+    // Phase 10 Part 1 — AI Usage/Cost Ledger
+    supabaseAdmin.from('ai_usage_log')
+      .select('program_id, action_id, asset_id, model, input_tokens, output_tokens, estimated_cost_usd, created_at')
+      .gte('created_at', since).limit(20000),
   ]);
 
   const ragLogs = ragResult.data ?? [];
@@ -38,6 +42,11 @@ export async function GET() {
   const qscoreLogs = qscoreResult.data ?? [];
   const cacheRows = cacheResult.data ?? [];
   const activityRows = activityResult.data ?? [];
+  type AiUsageRow = {
+    program_id: string | null; action_id: string | null; asset_id: string | null
+    model: string; input_tokens: number; output_tokens: number; estimated_cost_usd: number | null
+  };
+  const aiUsageRows = (aiUsageResult.data ?? []) as unknown as AiUsageRow[];
   type FounderRow = { user_id: string; onboarding_completed: boolean; assessment_completed: boolean; stripe_verified: boolean; visibility_gated: boolean; signal_strength: number | null; integrity_index: number | null; momentum_score: number | null; behavioural_score: number | null; updated_at: string | null };
   const founderRows = (founderResult.data ?? []) as unknown as FounderRow[];
   type QScoreAllRow = { user_id: string; overall_score: number | null; calculated_at: string };
@@ -173,6 +182,31 @@ export async function GET() {
     poor:      allScores.filter(s => s < 50).length,
   };
 
+  // ── Aggregate AI usage/cost metrics (Phase 10 Part 1) ─────────────────────
+  const aiUsageTotal = aiUsageRows.length;
+  let aiInputTokens = 0, aiOutputTokens = 0, aiCostUsd = 0;
+  const aiByProgram: Record<string, { calls: number; inputTokens: number; outputTokens: number; costUsd: number }> = {};
+  const aiByAction: Record<string, { calls: number; inputTokens: number; outputTokens: number; costUsd: number }> = {};
+  for (const row of aiUsageRows) {
+    aiInputTokens += row.input_tokens;
+    aiOutputTokens += row.output_tokens;
+    aiCostUsd += Number(row.estimated_cost_usd ?? 0);
+
+    const programKey = row.program_id ?? 'unattributed';
+    if (!aiByProgram[programKey]) aiByProgram[programKey] = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    aiByProgram[programKey].calls++;
+    aiByProgram[programKey].inputTokens += row.input_tokens;
+    aiByProgram[programKey].outputTokens += row.output_tokens;
+    aiByProgram[programKey].costUsd += Number(row.estimated_cost_usd ?? 0);
+
+    const actionKey = row.action_id ?? row.asset_id ?? 'unattributed';
+    if (!aiByAction[actionKey]) aiByAction[actionKey] = { calls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 };
+    aiByAction[actionKey].calls++;
+    aiByAction[actionKey].inputTokens += row.input_tokens;
+    aiByAction[actionKey].outputTokens += row.output_tokens;
+    aiByAction[actionKey].costUsd += Number(row.estimated_cost_usd ?? 0);
+  }
+
   // ── Build response ────────────────────────────────────────────────────────
   return NextResponse.json({
     rag: {
@@ -216,6 +250,15 @@ export async function GET() {
     activity: {
       totalEvents: activityRows.length,
       byAgent: activityByAgent,
+    },
+    aiUsage: {
+      windowDays: 7,
+      totalCalls: aiUsageTotal,
+      totalInputTokens: aiInputTokens,
+      totalOutputTokens: aiOutputTokens,
+      totalCostUsd: Math.round(aiCostUsd * 1_000_000) / 1_000_000,
+      byProgram: aiByProgram,
+      byAction: aiByAction,
     },
     beta: {
       // Founder funnel

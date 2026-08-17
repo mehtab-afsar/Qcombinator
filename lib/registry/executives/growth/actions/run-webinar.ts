@@ -18,6 +18,7 @@ import type { ActionDef } from '../../../types'
  */
 export const RUN_WEBINAR: ActionDef = {
   id: 'run_webinar',
+  program: 'P003',
   name: 'Run Webinar',
   kind: 'oneoff',
   irreversible: false,

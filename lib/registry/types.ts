@@ -118,12 +118,40 @@ export interface AssetDef {
 
 export interface ActionDef {
   id: ActionId
+  /**
+   * The OWNING Program — mirrors AssetDef.program exactly (added Phase 10 Part 2). Every
+   * existing Action had exactly one Program listing it before this field existed; this just
+   * makes that ownership explicit instead of implicit in which Program's `actions` array
+   * happened to name it.
+   */
+  program: ProgramId
+  /**
+   * Programs that also legitimately generate this Action — mirrors AssetDef.sharedWith exactly.
+   * A cross-cutting capability (e.g. customer research) that more than one Program should be
+   * able to run is expressed here, not by copy-pasting a near-identical Action per Program
+   * (CLAUDE.md "reject duplication").
+   */
+  sharedWith?: ProgramId[]
   name: string
   /**
    * ADR-020: an Action is one-off or recurring. A "cadence" is the *frequency* of
    * a recurring Action (a value in `scheduled_actions.cadence`), never an entity.
    */
   kind: 'oneoff' | 'recurring'
+  /**
+   * Another Action in the SAME Program whose result this one reads as an input, in addition to
+   * the ordinary Company Context (AI SDR Milestone 1 — real chaining, not a generic dependency
+   * graph). Optional: the vast majority of Actions across every Program compose independently,
+   * exactly as before. `validateRegistry()` enforces both that the id resolves AND that it's
+   * listed in the same Program — a cross-Program dependency isn't meaningful, since `run.ts`
+   * generates one Program's Actions at a time with no ordering guarantee across Programs.
+   *
+   * Only the depended-on Action's OWN result is threaded through (`CompanyContext.dependencyResult`
+   * — see `lib/rhythm/run.ts`'s Actions phase) — never a whole chain's history, and never for an
+   * `irreversible` depended-on Action (its `result` isn't set until a human approves and it
+   * executes, which is Milestone 2's concern, not this field's).
+   */
+  dependsOn?: ActionId
   /**
    * True for external side effects that cannot be undone: send, publish, spend,
    * change price.

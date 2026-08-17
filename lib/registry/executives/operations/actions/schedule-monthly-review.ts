@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const SCHEDULE_MONTHLY_REVIEW: ActionDef = {
   id: 'schedule_monthly_review',
+  program: 'P009',
   name: 'Schedule Monthly Review',
   kind: 'oneoff',
   irreversible: false,

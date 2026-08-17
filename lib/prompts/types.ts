@@ -68,6 +68,14 @@ export interface CompanyContext {
   /** Anything new this cycle — uploads, notes, results. */
   newInformation?: string
   /**
+   * AI SDR Milestone 1 — real chaining. When an Action declares `ActionDef.dependsOn`, this
+   * carries the depended-on Action's own result, populated by `lib/rhythm/run.ts`'s Actions
+   * phase (never by the Composer itself — this stays a pure function, same discipline as
+   * `currentAssets`). Distinct from `currentAssets`: this is one prior ACTION's output within
+   * this same chain, not a Program's maintained documents.
+   */
+  dependencyResult?: { actionId: ActionId; label: string; text: string }
+  /**
    * Anonymized, aggregate stats from founders in a similar sector/stage bucket on this
    * platform (lib/comparables/retrieve.ts). Never per-founder data — a single real founder's
    * identity or exact figure must never reach this field. Market context about *other*

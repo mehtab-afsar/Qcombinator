@@ -12,6 +12,7 @@ import {
   getProgram,
   listExecutives,
   listPrograms,
+  listProgramsForAction,
   listProgramsForAsset,
   listProgramsForExecutive,
   validateRegistry,
@@ -24,6 +25,7 @@ import {
   type Executive,
   type ProgramTemplate,
 } from '@/lib/registry'
+import { getInstructionPrompt } from '@/lib/prompts/registry'
 
 // ─── Resolution (F05 UC-05.6) ─────────────────────────────────────────────────
 
@@ -86,7 +88,7 @@ describe('a broken registry fails at load with a clear message', () => {
     instructionsRef: 'AS001', ...over,
   })
   const action = (over: Partial<ActionDef> = {}): ActionDef => ({
-    id: 'validate_icps', name: 'Validate ICPs', kind: 'oneoff', irreversible: false,
+    id: 'validate_icps', program: 'P001', name: 'Validate ICPs', kind: 'oneoff', irreversible: false,
     instructionsRef: 'validate_icps', ...over,
   })
 
@@ -160,19 +162,63 @@ describe('a broken registry fails at load with a clear message', () => {
     )
     expect(problems[0]).toMatch(/must require just-in-time approval/)
   })
+
+  // ── AI SDR Milestone 1 — dependsOn ───────────────────────────────────────────
+
+  it('catches a dependsOn pointing at an unknown action', () => {
+    const problems = validateRegistry(
+      [executive()], [program()], [asset()],
+      [action({ dependsOn: 'ghost_action' })],
+    )
+    expect(problems).toContain("Action 'validate_icps' depends on unknown action 'ghost_action'")
+  })
+
+  it('catches a dependsOn pointing outside its own Program', () => {
+    // step_two lives on a DIFFERENT program than validate_icps — run.ts generates one
+    // Program's actions at a time, so a cross-Program dependency has no ordering guarantee.
+    const problems = validateRegistry(
+      [executive()],
+      [program({ actions: ['validate_icps'] })],
+      [asset()],
+      [action({ dependsOn: 'step_two' }), action({ id: 'step_two', instructionsRef: 'step_two' })],
+    )
+    expect(problems).toContain(
+      "Action 'validate_icps' depends on 'step_two', but Program 'P001' does not list 'step_two' " +
+        'among its own actions — dependsOn must stay within one Program',
+    )
+  })
+
+  it('allows a valid same-Program dependsOn — no problems', () => {
+    const problems = validateRegistry(
+      [executive()],
+      [program({ actions: ['validate_icps', 'step_two'] })],
+      [asset()],
+      [action({ dependsOn: 'step_two' }), action({ id: 'step_two', instructionsRef: 'step_two' })],
+    )
+    expect(problems).toEqual([])
+  })
 })
 
 // ─── P001's scope (F05 acceptance) ────────────────────────────────────────────
 
-describe('P001 GTM', () => {
-  it('has exactly AS001–AS005 (PRD §10)', () => {
-    expect(getProgram('P001').assets).toEqual(['AS001', 'AS002', 'AS003', 'AS004', 'AS005'])
+describe('P001 GTM & Strategy', () => {
+  it('has AS001–AS005 (PRD §10) plus AS017, absorbed from P007 on merge (Phase 10 Part 3)', () => {
+    expect(getProgram('P001').assets).toEqual(['AS001', 'AS002', 'AS003', 'AS004', 'AS005', 'AS017'])
   })
 
-  it('does NOT contain AS013 — that is P004 Sales Enablement', () => {
+  it('has its original six actions plus the four absorbed from P007', () => {
+    expect(getProgram('P001').actions).toEqual([
+      'validate_icps', 'interview_customers', 'prioritize_channels', 'review_messaging',
+      'approve_gtm_plan', 'post_team_update',
+      'review_pricing', 'test_new_pricing', 'approve_discounts', 'update_commercial_terms',
+    ])
+  })
+
+  it('does NOT contain AS013 — that is P005 (originally P004 Sales Enablement, merged in Phase 10 Part 3)', () => {
     // Regression guard. An earlier Featureinventory draft listed AS013 under P001;
     // ADR-011 corrected it, and the workbook's Asset Registry confirms AS013 is
-    // "Sales Enablement Kit | P004 – Guide". This test stops the error returning.
+    // "Sales Enablement Kit | P004 – Guide" — P004 was later merged into P005.
+    // This test stops the AS013-under-P001 error returning.
     expect(getProgram('P001').assets).not.toContain('AS013')
   })
 
@@ -225,29 +271,43 @@ describe('P003 Demand Generation', () => {
   })
 })
 
-describe('P004 Sales Enablement', () => {
-  it('has AS013–AS014 (workbook Asset Registry) — neither shared with another Program', () => {
-    expect(getProgram('P004').assets).toEqual(['AS013', 'AS014'])
+describe('P004 Sales Enablement — merged into P005 (Phase 10 Part 3)', () => {
+  it('no longer exists as a standalone Program id', () => {
+    expect(() => getProgram('P004')).toThrow('Unknown program: P004')
   })
 
-  it('is owned by growth — the same executive as P001/P002/P003, no new voice prompt needed', () => {
-    expect(getProgram('P004').owner).toBe('growth')
+  it('AS013, AS014 and its four Actions now belong to P005', () => {
+    expect(getProgram('P005').assets).toEqual(expect.arrayContaining(['AS013', 'AS014']))
+    for (const actionId of ['train_sales_team', 'update_sales_materials', 'prepare_customer_demo', 'review_win_loss_feedback']) {
+      expect(getProgram('P005').actions).toContain(actionId)
+      expect(getAction(actionId).program).toBe('P005')
+    }
+    expect(getAsset('AS013').program).toBe('P005')
+    expect(getAsset('AS014').program).toBe('P005')
   })
 
-  it('carries the prompt refs the Composer needs (ADR-012)', () => {
-    expect(getProgram('P004').programPromptRef).toBe('P004')
-    for (const assetId of getProgram('P004').assets) {
-      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+  it('the Action Instructions survive the merge untouched — only ownership moved', () => {
+    for (const assetOrActionId of ['AS013', 'AS014', 'train_sales_team', 'update_sales_materials', 'prepare_customer_demo', 'review_win_loss_feedback']) {
+      expect(getInstructionPrompt(assetOrActionId)).toBeTruthy()
     }
   })
 })
 
-describe('P005 Customer Acquisition', () => {
-  it('has exactly AS015 (workbook Asset Registry) — not shared with another Program', () => {
-    expect(getProgram('P005').assets).toEqual(['AS015'])
+describe('P005 Customer Acquisition & Sales Enablement', () => {
+  it('has AS015 (original) plus AS013–AS014, absorbed from P004 on merge (Phase 10 Part 3)', () => {
+    expect(getProgram('P005').assets).toEqual(['AS015', 'AS013', 'AS014'])
   })
 
-  it('is owned by growth — the same executive as P001–P004, no new voice prompt needed', () => {
+  it('has its original nine AI SDR actions plus the four absorbed from P004', () => {
+    expect(getProgram('P005').actions).toEqual([
+      'find_target_companies', 'find_decision_makers', 'research_account', 'score_and_prioritize_leads',
+      'generate_personalized_outreach', 'monitor_and_classify_responses', 'follow_up_prospects',
+      'qualify_leads', 'update_crm',
+      'train_sales_team', 'update_sales_materials', 'prepare_customer_demo', 'review_win_loss_feedback',
+    ])
+  })
+
+  it('is owned by growth — the same executive as P001–P003, no new voice prompt needed', () => {
     expect(getProgram('P005').owner).toBe('growth')
   })
 
@@ -276,19 +336,23 @@ describe('P006 Customer Success', () => {
   })
 })
 
-describe('P007 Pricing & Packaging', () => {
-  it('has exactly AS017 (workbook Asset Registry) — not shared with another Program', () => {
-    expect(getProgram('P007').assets).toEqual(['AS017'])
+describe('P007 Pricing & Packaging — merged into P001 (Phase 10 Part 3)', () => {
+  it('no longer exists as a standalone Program id', () => {
+    expect(() => getProgram('P007')).toThrow('Unknown program: P007')
   })
 
-  it('is owned by growth — the same executive as P001–P006, no new voice prompt needed', () => {
-    expect(getProgram('P007').owner).toBe('growth')
+  it('AS017 and its four Actions now belong to P001', () => {
+    expect(getProgram('P001').assets).toContain('AS017')
+    for (const actionId of ['review_pricing', 'test_new_pricing', 'approve_discounts', 'update_commercial_terms']) {
+      expect(getProgram('P001').actions).toContain(actionId)
+      expect(getAction(actionId).program).toBe('P001')
+    }
+    expect(getAsset('AS017').program).toBe('P001')
   })
 
-  it('carries the prompt refs the Composer needs (ADR-012)', () => {
-    expect(getProgram('P007').programPromptRef).toBe('P007')
-    for (const assetId of getProgram('P007').assets) {
-      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+  it('the Action Instructions survive the merge untouched — only ownership moved', () => {
+    for (const assetOrActionId of ['AS017', 'review_pricing', 'test_new_pricing', 'approve_discounts', 'update_commercial_terms']) {
+      expect(getInstructionPrompt(assetOrActionId)).toBeTruthy()
     }
   })
 })
@@ -298,7 +362,7 @@ describe('P008 Market Intelligence', () => {
     expect(getProgram('P008').assets).toEqual(['AS018'])
   })
 
-  it('is owned by growth — the same executive as P001–P007, no new voice prompt needed', () => {
+  it('is owned by growth — the same executive as P001–P006, no new voice prompt needed', () => {
     expect(getProgram('P008').owner).toBe('growth')
   })
 
@@ -436,7 +500,7 @@ describe('P003 actions — approval surface', () => {
   })
 })
 
-describe('P004 actions — approval surface', () => {
+describe('ex-P004 sales enablement actions (now P005) — approval surface', () => {
   it('all four are internal, reversible and connector-free', () => {
     // No LMS/training, deck/CMS/CRM or demo/screen-share Connector exists yet
     // (only gmail, slack, stripe, posthog are registered), so
@@ -456,28 +520,59 @@ describe('P004 actions — approval surface', () => {
     }
   })
 
-  it('every action is one-off (ADR-020)', () => {
-    for (const action of getProgram('P004').actions.map(getAction)) {
-      expect(action.kind).toBe('oneoff')
+  it('every one of the four is one-off (ADR-020)', () => {
+    for (const id of ['train_sales_team', 'update_sales_materials', 'prepare_customer_demo', 'review_win_loss_feedback']) {
+      expect(getAction(id).kind).toBe('oneoff')
     }
   })
 })
 
 describe('P005 actions — approval surface', () => {
-  it('all five are internal, reversible and connector-free', () => {
-    // No prospecting/enrichment, outreach-send or CRM Connector exists yet
-    // (only gmail, slack, stripe, posthog are registered), so
-    // generate_lead_lists/launch_outreach/follow_up_prospects/qualify_leads/
-    // update_crm draft or recommend rather than actually sending or writing
-    // live — see each file for the reasoning. launch_outreach and
-    // follow_up_prospects are the closest either has come to a real Gmail
-    // send like P001's interview_customers, and were deliberately kept
-    // draft-only rather than made a second irreversible send action — see
-    // those two files. If a real Connector is added later, this is the test
-    // that should start failing.
+  it('has the nine restructured AI SDR actions, in pipeline order, plus four absorbed from P004', () => {
+    // The founder-directed AI SDR restructuring (18 Aug 2026), plus the P004 merge
+    // (Phase 10 Part 3) — see p005-acquire.ts for the full before/after of both.
+    expect(getProgram('P005').actions).toEqual([
+      'find_target_companies',
+      'find_decision_makers',
+      'research_account',
+      'score_and_prioritize_leads',
+      'generate_personalized_outreach',
+      'monitor_and_classify_responses',
+      'follow_up_prospects',
+      'qualify_leads',
+      'update_crm',
+      'train_sales_team',
+      'update_sales_materials',
+      'prepare_customer_demo',
+      'review_win_loss_feedback',
+    ])
+  })
+
+  it('generate_personalized_outreach is the only irreversible action, on the gmail connector', () => {
+    // Mirrors P001's own approval-surface test above: this is P005's one real
+    // external send — the second in the system alongside interview_customers.
+    const irreversible = getProgram('P005').actions
+      .map(getAction)
+      .filter(a => a.irreversible)
+
+    expect(irreversible.map(a => a.id)).toEqual(['generate_personalized_outreach'])
+    expect(getAction('generate_personalized_outreach').connector).toBe('gmail')
+  })
+
+  it('the other eight are internal, reversible and connector-free', () => {
+    // No prospecting/enrichment or CRM Connector exists yet (only gmail, slack,
+    // stripe, posthog are registered), so find_target_companies/
+    // find_decision_makers/research_account/score_and_prioritize_leads/
+    // monitor_and_classify_responses/follow_up_prospects/qualify_leads/
+    // update_crm produce analysis, briefs or recommendations rather than a
+    // live data pull or write. If a real Connector is added later, this is
+    // the test that should start failing.
     for (const id of [
-      'generate_lead_lists',
-      'launch_outreach',
+      'find_target_companies',
+      'find_decision_makers',
+      'research_account',
+      'score_and_prioritize_leads',
+      'monitor_and_classify_responses',
       'follow_up_prospects',
       'qualify_leads',
       'update_crm',
@@ -527,7 +622,7 @@ describe('P006 actions — approval surface', () => {
   })
 })
 
-describe('P007 actions — approval surface', () => {
+describe('ex-P007 pricing actions (now P001) — approval surface', () => {
   it('all four are internal, reversible and connector-free', () => {
     // No live-price-write Connector exists — the registered Stripe connector is
     // read/sync only (billing status; see lib/registry/types.ts's ConnectorId
@@ -556,9 +651,9 @@ describe('P007 actions — approval surface', () => {
     expect(getAction('approve_discounts').irreversible).toBe(false)
   })
 
-  it('every action is one-off (ADR-020)', () => {
-    for (const action of getProgram('P007').actions.map(getAction)) {
-      expect(action.kind).toBe('oneoff')
+  it('every one of the four is one-off (ADR-020)', () => {
+    for (const id of ['review_pricing', 'test_new_pricing', 'approve_discounts', 'update_commercial_terms']) {
+      expect(getAction(id).kind).toBe('oneoff')
     }
   })
 })
@@ -779,9 +874,9 @@ describe('executive roster (PRD §7.1)', () => {
     expect(getProgram('P001').owner).not.toBe('product')
   })
 
-  it('growth now owns all eight seeded programs — the full P001–P008 roster', () => {
+  it('growth owns six seeded programs — P001, P002, P003, P005, P006, P008 (P007 merged into P001, P004 merged into P005)', () => {
     expect(listProgramsForExecutive('growth').map(p => p.id)).toEqual([
-      'P001', 'P002', 'P003', 'P004', 'P005', 'P006', 'P007', 'P008',
+      'P001', 'P002', 'P003', 'P005', 'P006', 'P008',
     ])
     expect(listProgramsForExecutive('ceo')).toEqual([])
   })
@@ -824,6 +919,48 @@ describe('AS004 — the shared asset', () => {
   })
 })
 
+// ─── Phase 10 Part 2 — Actions can be shared across Programs too ──────────────
+
+describe('Action ownership mirrors Asset ownership exactly', () => {
+  it('every seeded action has exactly one owner and no sharedWith yet', () => {
+    // True today: sharing an Action is a capability this phase adds, not something any
+    // existing Action actually uses yet. If this ever fails, a real Action started sharing —
+    // update this assertion deliberately rather than let it drift silently.
+    for (const program of listPrograms()) {
+      for (const actionId of program.actions) {
+        expect(listProgramsForAction(actionId)).toEqual([program.id])
+      }
+    }
+  })
+
+  it('listProgramsForAction returns owner + sharedWith', () => {
+    const shared = { ...getAction('review_messaging'), sharedWith: ['P002'] as ProgramTemplate['id'][] }
+    const problems = validateRegistry(
+      listExecutives(),
+      listPrograms().map(p => (p.id === 'P002' ? { ...p, actions: [...p.actions, 'review_messaging'] } : p)),
+      undefined,
+      undefined,
+    )
+    // Baseline: P002 listing review_messaging without the action naming it back is invalid.
+    expect(problems).toContain(
+      "Program 'P002' lists action 'review_messaging', but 'review_messaging' does not name it " +
+        "as its owner or in sharedWith (it names P001)",
+    )
+    expect(listProgramsForAction('review_messaging')).toEqual(['P001'])
+    expect([shared.program, ...(shared.sharedWith ?? [])]).toEqual(['P001', 'P002'])
+  })
+
+  it('an action naming an owner that does not claim it back is caught', () => {
+    const problems = validateRegistry(
+      [{ id: 'growth', name: 'G', motto: '', domains: [], programs: ['P001'], systemPromptRef: 'S003', inheritsFrom: [] }],
+      [{ id: 'P001', handle: 'GTM', name: 'GTM', owner: 'growth', objective: '', successMetric: '', assets: [], actions: [], programPromptRef: 'P001' }],
+      [],
+      [{ id: 'orphan_action', program: 'P001', name: 'Orphan', kind: 'oneoff', irreversible: false, instructionsRef: 'orphan_action' }],
+    )
+    expect(problems).toContain("Action 'orphan_action' claims owner 'P001', but that program does not list it")
+  })
+})
+
 // ─── F05's headline claim ─────────────────────────────────────────────────────
 
 describe('adding a Program requires no new route (F05 acceptance) — the general mechanism', () => {
@@ -855,10 +992,10 @@ describe('adding a Program requires no new route (F05 acceptance) — the genera
       ...getProgram('P001').actions,
       ...getProgram('P002').actions,
       ...getProgram('P003').actions,
-      ...getProgram('P004').actions,
       ...getProgram('P005').actions,
       ...getProgram('P006').actions,
-      ...getProgram('P007').actions,
+      // P001's own actions above already include the four ex-P007 ones, and P005's own
+      // actions above already include the four ex-P004 ones (both merged, Phase 10 Part 3).
       ...getProgram('P008').actions,
       ...getProgram('P009').actions,
       ...getProgram('P015').actions,
@@ -866,12 +1003,14 @@ describe('adding a Program requires no new route (F05 acceptance) — the genera
     ].map(getAction)
 
   it('a brand new Program resolves through the same loader, unchanged', () => {
-    // Config only: no route, no migration, no engine change. AS005 gains
-    // sharedWith: ['P997'] — the declaration that P997 may maintain it.
+    // Config only: no route, no migration, no engine change. AS005 and
+    // review_messaging both gain sharedWith: ['P997'] — the declaration that P997 may
+    // maintain/generate them (Phase 10 Part 2 extended the identical mechanism to Actions).
     // operations, product and finance are included unmodified so P009 (owner
     // 'operations'), P015 (owner 'product') and P023 (owner 'finance'), all
     // now part of listPrograms(), still resolve an owner.
     const as005 = { ...getAsset('AS005'), sharedWith: ['P997'] as ProgramTemplate['id'][] }
+    const reviewMessaging = { ...getAction('review_messaging'), sharedWith: ['P997'] as ProgramTemplate['id'][] }
 
     const problems = validateRegistry(
       [
@@ -882,7 +1021,7 @@ describe('adding a Program requires no new route (F05 acceptance) — the genera
       ],
       [...listPrograms(), p997],
       [...seededAssets().filter(a => a.id !== 'AS005'), as005],
-      seededActions(),
+      [...seededActions().filter(a => a.id !== 'review_messaging'), reviewMessaging],
     )
 
     expect(problems).toEqual([])

@@ -18,6 +18,7 @@ import type { ActionDef } from '../../../types'
  */
 export const MONITOR_COMPETITORS: ActionDef = {
   id: 'monitor_competitors',
+  program: 'P008',
   name: 'Monitor Competitors',
   kind: 'oneoff',
   irreversible: false,

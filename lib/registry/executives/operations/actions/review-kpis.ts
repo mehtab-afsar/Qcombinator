@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const REVIEW_KPIS: ActionDef = {
   id: 'review_kpis',
+  program: 'P009',
   name: 'Review KPIs',
   kind: 'oneoff',
   irreversible: false,

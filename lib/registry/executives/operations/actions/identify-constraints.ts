@@ -13,6 +13,7 @@ import type { ActionDef } from '../../../types'
  */
 export const IDENTIFY_CONSTRAINTS: ActionDef = {
   id: 'identify_constraints',
+  program: 'P009',
   name: 'Identify Constraints',
   kind: 'oneoff',
   irreversible: false,

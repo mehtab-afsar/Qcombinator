@@ -12,7 +12,7 @@ import { attachOwners, type ActionLogEntry } from '@/lib/actions/log'
 const entry = (over: Partial<ActionLogEntry> = {}): ActionLogEntry => ({
   id: 'e1', founderId: 'f1', programId: 'prog-uuid-1', executionId: null,
   actionId: 'interview_customers', provider: 'gmail', irreversible: true,
-  status: 'pending_approval', payloadHash: 'h1', request: {}, result: null,
+  status: 'pending_approval', payloadHash: 'h1', payloadRef: null, request: {}, result: null,
   approvedBy: null, approvedAt: null, createdAt: '2026-08-04T00:00:00Z', ...over,
 })
 

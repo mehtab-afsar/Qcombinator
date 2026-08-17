@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const MONITOR_LEAD_GENERATION: ActionDef = {
   id: 'monitor_lead_generation',
+  program: 'P003',
   name: 'Monitor Lead Generation',
   kind: 'oneoff',
   irreversible: false,

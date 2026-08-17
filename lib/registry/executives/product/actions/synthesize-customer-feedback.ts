@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const SYNTHESIZE_CUSTOMER_FEEDBACK: ActionDef = {
   id: 'synthesize_customer_feedback',
+  program: 'P015',
   name: 'Synthesize Customer Feedback',
   kind: 'oneoff',
   irreversible: false,

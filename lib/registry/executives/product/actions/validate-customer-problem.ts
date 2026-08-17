@@ -17,6 +17,7 @@ import type { ActionDef } from '../../../types'
  */
 export const VALIDATE_CUSTOMER_PROBLEM: ActionDef = {
   id: 'validate_customer_problem',
+  program: 'P015',
   name: 'Validate Customer Problem',
   kind: 'oneoff',
   irreversible: false,

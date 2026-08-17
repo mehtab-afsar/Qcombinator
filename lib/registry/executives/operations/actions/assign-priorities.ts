@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const ASSIGN_PRIORITIES: ActionDef = {
   id: 'assign_priorities',
+  program: 'P009',
   name: 'Assign Priorities',
   kind: 'oneoff',
   irreversible: false,

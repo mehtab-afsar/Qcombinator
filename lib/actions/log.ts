@@ -36,6 +36,10 @@ export interface ActionLogEntry {
   irreversible: boolean
   status: ActionStatus
   payloadHash: string | null
+  /** A Supabase Vault secret id holding the REAL payload — never the content itself. Null for
+   *  every reversible/internal Action, and for any row once the payload's been cleaned up
+   *  (approved-and-executed, declined, or expired). See lib/actions/payload-vault.ts. */
+  payloadRef: string | null
   request: Record<string, unknown>
   result: Record<string, unknown> | null
   approvedBy: string | null
@@ -61,6 +65,7 @@ interface ActionLogRow {
   irreversible: boolean
   status: ActionStatus
   payload_hash: string | null
+  payload_ref: string | null
   request: unknown
   result: unknown
   approved_by: string | null
@@ -79,6 +84,7 @@ function toEntry(row: ActionLogRow): ActionLogEntry {
     irreversible: row.irreversible,
     status: row.status,
     payloadHash: row.payload_hash,
+    payloadRef: row.payload_ref ?? null,
     request: (row.request && typeof row.request === 'object' ? row.request : {}) as Record<string, unknown>,
     result: (row.result && typeof row.result === 'object' ? row.result : null) as Record<string, unknown> | null,
     approvedBy: row.approved_by,
@@ -127,6 +133,9 @@ export interface RecordAttemptArgs {
    * payload an approval was for, which is the whole point of the binding.
    */
   payloadHash?: string | null
+  /** A Supabase Vault secret id — see ActionLogEntry.payloadRef. Passed straight through, never
+   *  derived here (unlike payloadHash, this file never touches the real content). */
+  payloadRef?: string | null
   result?: Record<string, unknown> | null
   approvedBy?: string | null
 }
@@ -156,6 +165,7 @@ export async function recordAttempt(
       irreversible: args.irreversible,
       status: args.status,
       payload_hash: args.payload ? hashPayload(args.payload) : (args.payloadHash ?? null),
+      payload_ref: args.payloadRef ?? null,
       request: args.payload ? payloadMetadata(args.payload) : {},
       result: args.result ?? null,
       approved_by: args.approvedBy ?? null,

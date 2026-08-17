@@ -70,6 +70,16 @@ export function renderCompanyContext(
     }
   }
 
+  // AI SDR Milestone 1 — real chaining. Distinct section from Assets above: this is one prior
+  // Action's own output within this same chain, not a Program's maintained documents.
+  if (context.dependencyResult?.text?.trim()) {
+    const { label, text } = context.dependencyResult
+    parts.push(
+      `## Output From a Prior Step In This Chain — ${label}`, '',
+      '<data>', text.trim(), '</data>', '',
+    )
+  }
+
   field('New Information This Cycle', context.newInformation)
 
   return parts.join('\n').trimEnd()

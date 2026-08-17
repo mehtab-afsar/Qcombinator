@@ -16,6 +16,7 @@ import type { ActionDef } from '../../../types'
  */
 export const UPDATE_COMMERCIAL_TERMS: ActionDef = {
   id: 'update_commercial_terms',
+  program: 'P001',
   name: 'Update Commercial Terms',
   kind: 'oneoff',
   irreversible: false,

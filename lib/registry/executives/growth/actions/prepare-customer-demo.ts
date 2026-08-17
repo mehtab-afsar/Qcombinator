@@ -15,6 +15,7 @@ import type { ActionDef } from '../../../types'
  */
 export const PREPARE_CUSTOMER_DEMO: ActionDef = {
   id: 'prepare_customer_demo',
+  program: 'P005',
   name: 'Prepare Customer Demo',
   kind: 'oneoff',
   irreversible: false,

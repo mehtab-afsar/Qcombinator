@@ -5,13 +5,14 @@ import type { AssetDef } from '../../../types'
  *
  * Workbook (Program Registry, P004 assets): the company's authoritative
  * commercial toolkit — proposal structure, executive business case, ROI
- * calculator methodology, TCO model and cost-benefit analysis. Owned by
- * P004 — Sales Enablement.
+ * calculator methodology, TCO model and cost-benefit analysis. Originally
+ * owned by P004 — Sales Enablement, which was merged into P005 Customer
+ * Acquisition (Phase 10 Part 3, program consolidation).
  */
 export const AS014_PROPOSAL_ROI_TOOLKIT: AssetDef = {
   id: 'AS014',
   name: 'Proposal & ROI Toolkit',
-  program: 'P004',
+  program: 'P005',
   outputSchema: 'markdown',
   instructionsRef: 'AS014',
 }

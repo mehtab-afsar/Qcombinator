@@ -9,7 +9,12 @@
  * boundary only, on irreversible external effects. If this route ever grows a way to approve a
  * cycle, an Asset or a Briefing, it has rebuilt the gate the PRD deleted.
  *
- * Approving does NOT send. It records consent; execution is separate and re-reads that record.
+ * Approving DOES send, in this same request — `ActionCard`'s own button has always said
+ * "Approve and send," and this route now does exactly that: approveAction records consent,
+ * then executeApprovedAction spends it immediately, re-checking everything fresh (mandate,
+ * payload hash, connector grant) rather than trusting the record just written. Declining never
+ * sends anything, by construction — executeApprovedAction is only ever reached from the
+ * 'approve' branch.
  *
  * Thin: validate → call lib/actions → return (CLAUDE.md §2).
  */
@@ -22,6 +27,7 @@ import { parseBody, uuidSchema } from '@/lib/api/validate'
 import { newModelOff } from '@/lib/api/response'
 import { pendingApprovals, latestPerActionForFounder, attachOwners } from '@/lib/actions/log'
 import { approveAction, declineAction, ApprovalError } from '@/lib/actions/approve'
+import { executeApprovedAction, ExecutionError } from '@/lib/actions/execute'
 import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { getProgram, getAction } from '@/lib/registry'
 import { log } from '@/lib/logger'
@@ -157,12 +163,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const anchorId = await getAnchorFounderId(auth.user.id, admin)
     if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
 
-    const entry = decision === 'approve'
-      ? await approveAction(admin, {
-          founderId: anchorId, entryId, payloadHash: payloadHash!, approvedBy: auth.user.id,
-        })
-      : await declineAction(admin, { founderId: anchorId, entryId, declinedBy: auth.user.id })
+    if (decision === 'approve') {
+      const approved = await approveAction(admin, {
+        founderId: anchorId, entryId, payloadHash: payloadHash!, approvedBy: auth.user.id,
+      })
+      // "Approve and send," in this same request — approveAction only records consent;
+      // executeApprovedAction is what actually spends it, re-checking everything fresh rather
+      // than trusting the row just written. Every irreversible Action gets a payloadRef at
+      // generation time (lib/actions/generate.ts) — a missing one here means something upstream
+      // is broken, not a normal case, so this fails loud rather than silently "approving" without
+      // ever sending.
+      if (!approved.payloadRef) {
+        log.error('approved action has no payloadRef — cannot execute', { entryId, actionId: approved.actionId })
+        return NextResponse.json({ error: 'This action cannot be sent — its content is missing.' }, { status: 500 })
+      }
+      const executed = await executeApprovedAction(admin, {
+        founderId: anchorId,
+        actionId: approved.actionId,
+        programId: approved.programId,
+        executionId: approved.executionId,
+        payloadRef: approved.payloadRef,
+        approvedHash: payloadHash!,
+      })
+      return NextResponse.json({ entry: executed }, { status: 200 })
+    }
 
+    const entry = await declineAction(admin, { founderId: anchorId, entryId, declinedBy: auth.user.id })
     return NextResponse.json({ entry }, { status: 200 })
   } catch (err) {
     if (err instanceof ApprovalError) {
@@ -170,6 +196,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       // already decided, payload changed, expired, no mandate. The message is the useful part.
       const status = err.code === 'not_found' ? 404 : 409
       return NextResponse.json({ error: err.message, code: err.code }, { status })
+    }
+    if (err instanceof ExecutionError) {
+      // The approval itself already succeeded and is durably recorded — only the SEND failed
+      // to even be attempted (e.g. the connector grant was revoked between approving and now).
+      // Every one of these codes is "refused for a specific, named reason," never a 500.
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 409 })
     }
     log.error('POST /api/actions', { err })
     return NextResponse.json({ error: 'Failed to record your decision' }, { status: 500 })

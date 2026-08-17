@@ -2,14 +2,14 @@ import type { ProgramTemplate } from '../../../types'
 
 /**
  * P008 — Market Intelligence. Owned by the Growth executive, alongside P001
- * GTM, P002 Brand Strategy, P003 Demand Generation, P004 Sales Enablement,
- * P005 Customer Acquisition, P006 Customer Success and P007 Pricing &
- * Packaging.
+ * GTM & Strategy (which absorbed P007 Pricing & Packaging on merge, Phase 10
+ * Part 3), P002 Brand Strategy, P003 Demand Generation, P004 Sales
+ * Enablement and P005 Customer Acquisition, P006 Customer Success.
  *
  * The eighth and LAST Program PRD §7.1 assigns to Growth — same shape as
- * P001–P007, different values. Nothing about the Registry, Composer, Actions
- * engine or Connector registry changed to add it. Once this file is wired in,
- * Patel's full roster (P001–P008) is complete.
+ * P001–P006, different values. Nothing about the Registry, Composer, Actions
+ * engine or Connector registry changed to add it. Growth's roster is now
+ * P001–P006 + P008 (seven Programs; P007 no longer exists as a standalone id).
  *
  * Workbook Program Registry: id P008, handle "Intel", name "Market
  * Intelligence", assets "AS018", actions "Monitor Competitors, Conduct

@@ -19,6 +19,7 @@ import type { ActionDef } from '../../../types'
  */
 export const FOLLOW_UP_PROSPECTS: ActionDef = {
   id: 'follow_up_prospects',
+  program: 'P005',
   name: 'Follow-up Prospects',
   kind: 'oneoff',
   irreversible: false,

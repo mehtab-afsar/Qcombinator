@@ -12,6 +12,7 @@ import type { ActionDef } from '../../../types'
  */
 export const VALIDATE_ICPS: ActionDef = {
   id: 'validate_icps',
+  program: 'P001',
   name: 'Validate ICPs',
   kind: 'oneoff',
   irreversible: false,

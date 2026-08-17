@@ -10,6 +10,7 @@ import type { ActionDef } from '../../../types'
  */
 export const PRIORITIZE_CHANNELS: ActionDef = {
   id: 'prioritize_channels',
+  program: 'P001',
   name: 'Prioritize Channels',
   kind: 'oneoff',
   irreversible: false,

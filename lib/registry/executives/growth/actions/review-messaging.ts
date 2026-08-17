@@ -10,6 +10,7 @@ import type { ActionDef } from '../../../types'
  */
 export const REVIEW_MESSAGING: ActionDef = {
   id: 'review_messaging',
+  program: 'P001',
   name: 'Review Messaging',
   kind: 'oneoff',
   irreversible: false,

@@ -21,6 +21,7 @@ import type { ActionDef } from '../../../types'
  */
 export const APPROVE_VALIDATION_ROADMAP: ActionDef = {
   id: 'approve_validation_roadmap',
+  program: 'P015',
   name: 'Approve Validation Roadmap',
   kind: 'oneoff',
   irreversible: false,

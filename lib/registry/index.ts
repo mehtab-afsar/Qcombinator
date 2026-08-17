@@ -34,10 +34,8 @@ import { FINANCE } from './executives/finance/executive'
 import { P001_GTM } from './executives/growth/programs/p001-gtm'
 import { P002_BRAND } from './executives/growth/programs/p002-brand'
 import { P003_DEMAND } from './executives/growth/programs/p003-demand'
-import { P004_GUIDE } from './executives/growth/programs/p004-guide'
 import { P005_ACQUIRE } from './executives/growth/programs/p005-acquire'
 import { P006_SUCCESS } from './executives/growth/programs/p006-success'
-import { P007_PRICING } from './executives/growth/programs/p007-pricing'
 import { P008_INTEL } from './executives/growth/programs/p008-intel'
 import { P009_REVIEW } from './executives/operations/programs/p009-review'
 import { P015_VALIDATE } from './executives/product/programs/p015-validate'
@@ -94,8 +92,12 @@ import { TRAIN_SALES_TEAM } from './executives/growth/actions/train-sales-team'
 import { UPDATE_SALES_MATERIALS } from './executives/growth/actions/update-sales-materials'
 import { PREPARE_CUSTOMER_DEMO } from './executives/growth/actions/prepare-customer-demo'
 import { REVIEW_WIN_LOSS_FEEDBACK } from './executives/growth/actions/review-win-loss-feedback'
-import { GENERATE_LEAD_LISTS } from './executives/growth/actions/generate-lead-lists'
-import { LAUNCH_OUTREACH } from './executives/growth/actions/launch-outreach'
+import { FIND_TARGET_COMPANIES } from './executives/growth/actions/find-target-companies'
+import { FIND_DECISION_MAKERS } from './executives/growth/actions/find-decision-makers'
+import { RESEARCH_ACCOUNT } from './executives/growth/actions/research-account'
+import { SCORE_AND_PRIORITIZE_LEADS } from './executives/growth/actions/score-and-prioritize-leads'
+import { GENERATE_PERSONALIZED_OUTREACH } from './executives/growth/actions/generate-personalized-outreach'
+import { MONITOR_AND_CLASSIFY_RESPONSES } from './executives/growth/actions/monitor-and-classify-responses'
 import { FOLLOW_UP_PROSPECTS } from './executives/growth/actions/follow-up-prospects'
 import { QUALIFY_LEADS } from './executives/growth/actions/qualify-leads'
 import { UPDATE_CRM } from './executives/growth/actions/update-crm'
@@ -143,10 +145,8 @@ const PROGRAMS: readonly ProgramTemplate[] = [
   P001_GTM,
   P002_BRAND,
   P003_DEMAND,
-  P004_GUIDE,
   P005_ACQUIRE,
   P006_SUCCESS,
-  P007_PRICING,
   P008_INTEL,
   P009_REVIEW,
   P015_VALIDATE,
@@ -207,8 +207,12 @@ const ACTIONS: readonly ActionDef[] = [
   UPDATE_SALES_MATERIALS,
   PREPARE_CUSTOMER_DEMO,
   REVIEW_WIN_LOSS_FEEDBACK,
-  GENERATE_LEAD_LISTS,
-  LAUNCH_OUTREACH,
+  FIND_TARGET_COMPANIES,
+  FIND_DECISION_MAKERS,
+  RESEARCH_ACCOUNT,
+  SCORE_AND_PRIORITIZE_LEADS,
+  GENERATE_PERSONALIZED_OUTREACH,
+  MONITOR_AND_CLASSIFY_RESPONSES,
   FOLLOW_UP_PROSPECTS,
   QUALIFY_LEADS,
   UPDATE_CRM,
@@ -312,6 +316,34 @@ export function validateRegistry(
     for (const actionId of program.actions) {
       if (!actionIds.has(actionId)) {
         problems.push(`Program '${program.id}' references unknown action '${actionId}'`)
+        continue
+      }
+      // Phase 10 Part 2 — identical bidirectional check to the Asset one above: a Program
+      // listing an Action that does not name it back as owner or sharedWith is how sharing
+      // rots silently. Failing at load makes the Registry remember instead of a person.
+      const action = actions.find(a => a.id === actionId)
+      if (action) {
+        const claims = [action.program, ...(action.sharedWith ?? [])]
+        if (!claims.includes(program.id)) {
+          problems.push(
+            `Program '${program.id}' lists action '${actionId}', but '${actionId}' does not name it ` +
+              `as its owner or in sharedWith (it names ${claims.join(', ')})`,
+          )
+        }
+      }
+      // Milestone 1 (AI SDR chaining): a dependsOn id must resolve AND must be listed in THIS
+      // same Program — run.ts generates one Program's Actions at a time, so a cross-Program
+      // dependency has no ordering guarantee and would silently never resolve at runtime.
+      const dependsOn = actions.find(a => a.id === actionId)?.dependsOn
+      if (dependsOn) {
+        if (!actionIds.has(dependsOn)) {
+          problems.push(`Action '${actionId}' depends on unknown action '${dependsOn}'`)
+        } else if (!program.actions.includes(dependsOn)) {
+          problems.push(
+            `Action '${actionId}' depends on '${dependsOn}', but Program '${program.id}' does not ` +
+              `list '${dependsOn}' among its own actions — dependsOn must stay within one Program`,
+          )
+        }
       }
     }
   }
@@ -345,6 +377,20 @@ export function validateRegistry(
         `Action '${action.id}' has connector '${action.connector}' but is not marked irreversible — ` +
           `anything reaching an external system must require just-in-time approval (ADR-004)`,
       )
+    }
+    // Phase 10 Part 2 — identical to the Asset owner-claims-it-back check above.
+    for (const programId of [action.program, ...(action.sharedWith ?? [])]) {
+      if (!programIds.has(programId)) {
+        problems.push(`Action '${action.id}' references unknown program '${programId}'`)
+      }
+    }
+    if (programIds.has(action.program)) {
+      const owner = programs.find(p => p.id === action.program)
+      if (owner && !owner.actions.includes(action.id)) {
+        problems.push(
+          `Action '${action.id}' claims owner '${action.program}', but that program does not list it`,
+        )
+      }
     }
   }
 
@@ -419,4 +465,10 @@ export function listProgramsForExecutive(id: ExecutiveId | string): ProgramTempl
 export function listProgramsForAsset(id: AssetId | string): ProgramId[] {
   const asset = getAsset(id)
   return [asset.program, ...(asset.sharedWith ?? [])]
+}
+
+/** Programs that may generate an Action — its owner plus any `sharedWith`. Mirrors listProgramsForAsset. */
+export function listProgramsForAction(id: ActionId | string): ProgramId[] {
+  const action = getAction(id)
+  return [action.program, ...(action.sharedWith ?? [])]
 }

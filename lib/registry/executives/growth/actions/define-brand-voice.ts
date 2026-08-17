@@ -12,6 +12,7 @@ import type { ActionDef } from '../../../types'
  */
 export const DEFINE_BRAND_VOICE: ActionDef = {
   id: 'define_brand_voice',
+  program: 'P002',
   name: 'Define Brand Voice',
   kind: 'oneoff',
   irreversible: false,

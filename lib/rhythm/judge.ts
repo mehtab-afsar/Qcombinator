@@ -12,7 +12,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { routedCall, routedStream } from '@/lib/llm/router'
+import { routedCall, routedStream, type UsageContext } from '@/lib/llm/router'
 import { composePrompt, type CompanyContext } from '@/lib/prompts/compose'
 import { getAsset, type AssetId, type ExecutiveId, type ProgramId } from '@/lib/registry'
 import { persistAssetVersion, type AssetVersion } from '@/lib/assets/versioning'
@@ -104,14 +104,14 @@ function parseAssetContent(raw: string, schema: 'markdown' | 'json'): unknown {
   }
 }
 
-async function callLLMStreamed(text: string, onDelta: (text: string) => void): Promise<string> {
+async function callLLMStreamed(text: string, onDelta: (text: string) => void, usageContext?: UsageContext): Promise<string> {
   let full = ''
   let stopReason: string | undefined
   for await (const event of routedStream('reasoning', [{ role: 'user', content: text }], {
     // Same backstop and reasoning as the non-streamed call below — the Composer's length rule
     // shapes the document; this is only a ceiling.
     maxTokens: 6_000, temperature: 0.3,
-  })) {
+  }, usageContext)) {
     if (event.type === 'delta') {
       full += event.text
       onDelta(event.text)
@@ -126,18 +126,19 @@ async function callLLMStreamed(text: string, onDelta: (text: string) => void): P
   return full
 }
 
-async function callLLM(text: string, onDelta?: (text: string) => void): Promise<string> {
+async function callLLM(text: string, onDelta?: (text: string) => void, usageContext?: UsageContext): Promise<string> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       onDelta
-        ? callLLMStreamed(text, onDelta)
+        ? callLLMStreamed(text, onDelta, usageContext)
         : routedCall({
             // 6k is a BACKSTOP — the Composer's length rule (~1,500-2,000 words) is what shapes
             // the document. Trial run 2: a 3k cap truncated all five assets mid-sentence.
             taskClass: 'reasoning',
             messages: [{ role: 'user', content: text }],
             overrides: { maxTokens: 6_000, temperature: 0.3 },
+            usageContext,
           }).then(response => {
             // A truncated document must NEVER be persisted as an authoritative asset version.
             // The stage fails loudly instead (B4), and B5's retry makes the week recoverable.
@@ -176,9 +177,16 @@ export async function generateAssetContent(
     executionId: args.executionId ?? undefined,
   })
 
+  const usageContext: UsageContext = {
+    founderId: args.founderId,
+    programId: args.program.id,
+    assetId: args.assetId,
+    executionId: args.executionId ?? undefined,
+  }
+
   let raw: string
   try {
-    raw = await callLLM(pkg.text, args.onDelta)
+    raw = await callLLM(pkg.text, args.onDelta, usageContext)
   } catch (first) {
     // Truncation is NOT transient — the same prompt hits the same cap. Retrying it just
     // doubles the spend on a doomed call (run 3 proved it). Fail immediately; only
@@ -188,7 +196,7 @@ export async function generateAssetContent(
     }
     log.warn('asset judgement retrying', { assetId: args.assetId, err: (first as Error)?.message })
     try {
-      raw = await callLLM(pkg.text, args.onDelta)
+      raw = await callLLM(pkg.text, args.onDelta, usageContext)
     } catch (second) {
       throw new JudgementError(`Judgement failed for ${args.assetId}: ${(second as Error)?.message}`)
     }

@@ -20,10 +20,8 @@ import { S002_EXECUTIVE_CONTRACT } from './executives/ceo/s002'
 import { P001_GTM_PROMPT } from './executives/growth/programs/p001'
 import { P002_BRAND_PROMPT } from './executives/growth/programs/p002'
 import { P003_DEMAND_PROMPT } from './executives/growth/programs/p003'
-import { P004_GUIDE_PROMPT } from './executives/growth/programs/p004'
 import { P005_ACQUIRE_PROMPT } from './executives/growth/programs/p005'
 import { P006_SUCCESS_PROMPT } from './executives/growth/programs/p006'
-import { P007_PRICING_PROMPT } from './executives/growth/programs/p007'
 import { P008_INTEL_PROMPT } from './executives/growth/programs/p008'
 import { P009_REVIEW_PROMPT } from './executives/operations/programs/p009'
 import { P015_VALIDATE_PROMPT } from './executives/product/programs/p015'
@@ -78,8 +76,12 @@ import { TRAIN_SALES_TEAM_PROMPT } from './executives/growth/actions/train-sales
 import { UPDATE_SALES_MATERIALS_PROMPT } from './executives/growth/actions/update-sales-materials'
 import { PREPARE_CUSTOMER_DEMO_PROMPT } from './executives/growth/actions/prepare-customer-demo'
 import { REVIEW_WIN_LOSS_FEEDBACK_PROMPT } from './executives/growth/actions/review-win-loss-feedback'
-import { GENERATE_LEAD_LISTS_PROMPT } from './executives/growth/actions/generate-lead-lists'
-import { LAUNCH_OUTREACH_PROMPT } from './executives/growth/actions/launch-outreach'
+import { FIND_TARGET_COMPANIES_PROMPT } from './executives/growth/actions/find-target-companies'
+import { FIND_DECISION_MAKERS_PROMPT } from './executives/growth/actions/find-decision-makers'
+import { RESEARCH_ACCOUNT_PROMPT } from './executives/growth/actions/research-account'
+import { SCORE_AND_PRIORITIZE_LEADS_PROMPT } from './executives/growth/actions/score-and-prioritize-leads'
+import { GENERATE_PERSONALIZED_OUTREACH_PROMPT } from './executives/growth/actions/generate-personalized-outreach'
+import { MONITOR_AND_CLASSIFY_RESPONSES_PROMPT } from './executives/growth/actions/monitor-and-classify-responses'
 import { FOLLOW_UP_PROSPECTS_PROMPT } from './executives/growth/actions/follow-up-prospects'
 import { QUALIFY_LEADS_PROMPT } from './executives/growth/actions/qualify-leads'
 import { UPDATE_CRM_PROMPT } from './executives/growth/actions/update-crm'
@@ -148,10 +150,8 @@ const PROGRAM_PROMPTS: Readonly<Record<string, string>> = {
   P001: P001_GTM_PROMPT,
   P002: P002_BRAND_PROMPT,
   P003: P003_DEMAND_PROMPT,
-  P004: P004_GUIDE_PROMPT,
   P005: P005_ACQUIRE_PROMPT,
   P006: P006_SUCCESS_PROMPT,
-  P007: P007_PRICING_PROMPT,
   P008: P008_INTEL_PROMPT,
   P009: P009_REVIEW_PROMPT,
   P015: P015_VALIDATE_PROMPT,
@@ -174,14 +174,25 @@ const PROGRAM_PROMPTS: Readonly<Record<string, string>> = {
  * (publish_content, launch_campaign, optimize_seo, run_webinar, monitor_lead_generation) — the
  * workbook names them but doesn't write them. Same story again for P004's
  * four Action prompts (train_sales_team, update_sales_materials,
- * prepare_customer_demo, review_win_loss_feedback) and P005's five
+ * prepare_customer_demo, review_win_loss_feedback) and P005's original five
  * (generate_lead_lists, launch_outreach, follow_up_prospects, qualify_leads,
- * update_crm). Same story again for P006's five (schedule_onboarding,
+ * update_crm). P005 was later restructured (18 Aug 2026, founder decision —
+ * see p005-acquire.ts) into nine actions; generate_lead_lists and
+ * launch_outreach were removed and six were authored here in their place —
+ * find_target_companies, find_decision_makers, research_account,
+ * score_and_prioritize_leads, generate_personalized_outreach,
+ * monitor_and_classify_responses — for the same reason as everything else
+ * in this list: the workbook's Action Registry sheet is empty. Same story
+ * again for P006's five (schedule_onboarding,
  * conduct_qbr, monitor_health_scores, collect_feedback,
  * launch_upsell_campaign). Same story again for P007's four (review_pricing,
- * test_new_pricing, approve_discounts, update_commercial_terms) — and P007's
- * Program Prompt itself was authored here too, since the workbook has no
- * Program Prompts entry for P007 at all (see p007.ts's header). Same story
+ * test_new_pricing, approve_discounts, update_commercial_terms) — their
+ * Action Instructions are untouched and still keyed below by their own ids;
+ * only their owning Program changed. P007 itself was merged into P001 on
+ * 18 Aug 2026 (Phase 10 Part 3, program consolidation) — there is no `P007`
+ * key in PROGRAM_PROMPTS anymore, and P007's Program Prompt content (itself
+ * authored here originally, since the workbook had no Program Prompts entry
+ * for P007 at all) now lives merged into p001.ts's own prompt. Same story
  * again for P008's four (monitor_competitors, conduct_customer_interviews,
  * update_market_report, track_industry_trends) — and P008's Program Prompt
  * itself was authored here too, for the same reason (see p008.ts's header).
@@ -260,8 +271,12 @@ const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   update_sales_materials: UPDATE_SALES_MATERIALS_PROMPT,
   prepare_customer_demo: PREPARE_CUSTOMER_DEMO_PROMPT,
   review_win_loss_feedback: REVIEW_WIN_LOSS_FEEDBACK_PROMPT,
-  generate_lead_lists: GENERATE_LEAD_LISTS_PROMPT,
-  launch_outreach: LAUNCH_OUTREACH_PROMPT,
+  find_target_companies: FIND_TARGET_COMPANIES_PROMPT,
+  find_decision_makers: FIND_DECISION_MAKERS_PROMPT,
+  research_account: RESEARCH_ACCOUNT_PROMPT,
+  score_and_prioritize_leads: SCORE_AND_PRIORITIZE_LEADS_PROMPT,
+  generate_personalized_outreach: GENERATE_PERSONALIZED_OUTREACH_PROMPT,
+  monitor_and_classify_responses: MONITOR_AND_CLASSIFY_RESPONSES_PROMPT,
   follow_up_prospects: FOLLOW_UP_PROSPECTS_PROMPT,
   qualify_leads: QUALIFY_LEADS_PROMPT,
   update_crm: UPDATE_CRM_PROMPT,
