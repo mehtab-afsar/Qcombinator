@@ -40,6 +40,8 @@ export interface AssetSummary {
   name: string
   outputSchema: 'markdown' | 'json'
   executiveId: string | null
+  /** The Registry Program id, e.g. 'P001' — mirrors ArtifactCardData's own field. */
+  programTemplateId: string | null
   asset: AssetVersionSummary | null
 }
 

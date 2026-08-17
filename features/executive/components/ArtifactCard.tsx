@@ -29,6 +29,9 @@ export interface ArtifactCardData {
   name: string
   /** The Registry executive that owns this document's Program — null only if unresolvable. */
   executiveId: string | null
+  /** The Registry Program id, e.g. 'P001' — null only if unresolvable. Lets a multi-Program
+   *  executive's page group/filter documents by Program (see groupByProgram). */
+  programTemplateId: string | null
   asset: ArtifactCardVersion | null
   /** Total versions this Asset has, including the current one — 0 if never generated. */
   versionCount?: number

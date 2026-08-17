@@ -70,6 +70,7 @@ async function allActionsForFounder(
       name: def.name,
       irreversible: def.irreversible,
       executiveId: ownerTemplateId ? getProgram(ownerTemplateId).owner : null,
+      programTemplateId: ownerTemplateId ?? null,
       status: entry?.status ?? ('never_run' as const),
       provider: entry?.provider ?? null,
       createdAt: entry?.createdAt ?? null,

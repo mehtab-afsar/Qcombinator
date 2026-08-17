@@ -43,6 +43,9 @@ import { AssetWorkspacePanel } from '@/features/executive/components/AssetWorksp
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { ExecutiveRead } from '@/features/executive/components/ExecutiveRead'
 import { BeatHeading } from '@/features/executive/components/BeatHeading'
+import { ProgramTabBar } from '@/features/executive/components/ProgramTabBar'
+import { ProgramOverviewGrid } from '@/features/executive/components/ProgramOverviewGrid'
+import { useProgramTabs } from '@/features/executive/hooks/useProgramTabs'
 import type { Rect } from '@/features/executive/lib/panel-origin'
 import type { Contract, ExecutiveSummary, ProgramInstance } from '@/features/executive/types/executive.types'
 
@@ -84,9 +87,16 @@ export default function ExecutiveDetailPage() {
   const searchParams = useSearchParams()
   const [state, setState] = useState<LoadState>('loading')
   const [executive, setExecutive] = useState<ExecutiveSummary | null>(null)
-  const [program, setProgram] = useState<ProgramInstance | null>(null)
+  // Was a singular `program: ProgramInstance | null` via `.find()` — silently kept only the
+  // FIRST of this executive's Programs and discarded the rest. An executive can own several
+  // (Growth now owns 8) — every one of them needs to be known, not just one.
+  const [programs, setPrograms] = useState<ProgramInstance[]>([])
   const [contract, setContract] = useState<Contract | null>(null)
   const live = useRef(true)
+
+  // Sub-navigation between this executive's own Programs — see useProgramTabs's own docstring.
+  const { activeProgramId, selectProgram, activeProgram, showOverviewGrid, panelProgramTemplateId } =
+    useProgramTabs(programs, searchParams)
 
   // CANVAS_SPEC §5 — the node workspace panel's open asset, mirrored into ?asset= so it's
   // linkable/refresh-safe without a full page navigation ("preserve the sense of place").
@@ -122,10 +132,10 @@ export default function ExecutiveDetailPage() {
 
       const contractData = await contractRes.json()
       if (!live.current) return
-      const programs: ProgramInstance[] = contractData.programs ?? []
+      const allPrograms: ProgramInstance[] = contractData.programs ?? []
       setContract(contractData.contract ?? null)
       setExecutive(found)
-      setProgram(programs.find(p => p.owner === executiveId) ?? null)
+      setPrograms(allPrograms.filter(p => p.owner === executiveId))
       setState('ready')
     } catch (err) {
       if (live.current) setState(isTimeoutError(err) ? 'timeout' : 'not_found')
@@ -171,7 +181,7 @@ export default function ExecutiveDetailPage() {
     )
   }
 
-  const active = program !== null
+  const active = programs.length > 0
   // The Mandate beat: this executive's slice of the ONE whole-company contract
   // (ExecutiveContract.responsibilities), the same join MandateCard already does.
   const mandateEntries = contract?.responsibilities.filter(r => r.executive === executiveId) ?? []
@@ -211,7 +221,7 @@ export default function ExecutiveDetailPage() {
           >
             {/* 1. Anchor (CANVAS_SPEC §4.1) — identity + status, replaces the old bare title. */}
             <motion.div variants={sectionVariants}>
-              <ExecutiveAnchor executive={executive} program={program} />
+              <ExecutiveAnchor executive={executive} program={activeProgram} />
             </motion.div>
 
             <motion.div variants={sectionVariants}>
@@ -236,29 +246,39 @@ export default function ExecutiveDetailPage() {
             {active && (
               <motion.div variants={sectionVariants}>
                 <BeatHeading>The Executive</BeatHeading>
-                {/* One interface, always — no separate "watch the first cycle" takeover screen
-                    (CANVAS_SPEC D1, "never two UIs"; direct founder feedback that a takeover
-                    fought this). RhythmPanel shows live status/streaming for whatever's running,
-                    regardless of how the cycle started — see its own docstring. */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                  {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
-                      "click-to-expand" read as: the glance leads, the running detail follows).
-                      Anchored so the chat rail's "initiated" reply can point back up here. */}
-                  <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                    <BirdsEyeStats executiveId={executiveId} />
-                    <RhythmPanel executiveId={executiveId} />
+                {/* Sub-navigation between this executive's own Programs — only renders (and only
+                    changes anything below) once an executive owns more than one; every
+                    single-Program executive sees exactly what rendered here before this. */}
+                <ProgramTabBar programs={programs} activeProgramId={activeProgramId} onChange={selectProgram} />
+                {showOverviewGrid ? (
+                  <ProgramOverviewGrid executiveId={executiveId} programs={programs} onSelect={selectProgram} />
+                ) : (
+                  /* One interface, always — no separate "watch the first cycle" takeover screen
+                     (CANVAS_SPEC D1, "never two UIs"; direct founder feedback that a takeover
+                     fought this). RhythmPanel shows live status/streaming for whatever's running,
+                     regardless of how the cycle started — see its own docstring. */
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                    {/* 2. Bird's-eye stats (§4.2), then Rhythm as the detail behind it (§4.2's
+                        "click-to-expand" read as: the glance leads, the running detail follows).
+                        Anchored so the chat rail's "initiated" reply can point back up here. */}
+                    <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
+                      <BirdsEyeStats executiveId={executiveId} />
+                      <RhythmPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
+                    </div>
+                    {/* 3. Documents (§4.3) */}
+                    <ProgramAssetsPanel
+                      executiveId={executiveId} onOpenAsset={openAsset} programTemplateId={panelProgramTemplateId}
+                    />
+                    {/* 4. Actions (§4.4) */}
+                    <ActionsPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
+                    <BriefingsPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
+                    {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
+                    <ActivityLog executiveId={executiveId} />
+                    {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
+                        own docstring for why. */}
+                    <ChatRail executiveId={executiveId} />
                   </div>
-                  {/* 3. Documents (§4.3) */}
-                  <ProgramAssetsPanel executiveId={executiveId} onOpenAsset={openAsset} />
-                  {/* 4. Actions (§4.4) */}
-                  <ActionsPanel executiveId={executiveId} />
-                  <BriefingsPanel executiveId={executiveId} />
-                  {/* 5. Activity log (§4.5) — everything the executive has done, in one feed. */}
-                  <ActivityLog executiveId={executiveId} />
-                  {/* 6. Chat rail (§4.6) — the last cockpit section. Stateless, see ChatRail's
-                      own docstring for why. */}
-                  <ChatRail executiveId={executiveId} />
-                </div>
+                )}
               </motion.div>
             )}
 

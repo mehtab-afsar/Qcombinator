@@ -32,12 +32,48 @@ import { OPERATIONS } from './executives/operations/executive'
 import { FINANCE } from './executives/finance/executive'
 
 import { P001_GTM } from './executives/growth/programs/p001-gtm'
+import { P002_BRAND } from './executives/growth/programs/p002-brand'
+import { P003_DEMAND } from './executives/growth/programs/p003-demand'
+import { P004_GUIDE } from './executives/growth/programs/p004-guide'
+import { P005_ACQUIRE } from './executives/growth/programs/p005-acquire'
+import { P006_SUCCESS } from './executives/growth/programs/p006-success'
+import { P007_PRICING } from './executives/growth/programs/p007-pricing'
+import { P008_INTEL } from './executives/growth/programs/p008-intel'
+import { P009_REVIEW } from './executives/operations/programs/p009-review'
+import { P015_VALIDATE } from './executives/product/programs/p015-validate'
+import { P023_MODEL } from './executives/finance/programs/p023-model'
 
 import { AS001_ICP_PROFILES } from './executives/growth/assets/as001-icp'
 import { AS002_PAINS_GAINS_MATRIX } from './executives/growth/assets/as002-pains-gains'
 import { AS003_BUYER_JOURNEY_MAP } from './executives/growth/assets/as003-buyer-journey'
 import { AS004_POSITIONING_MESSAGING } from './executives/growth/assets/as004-positioning'
 import { AS005_CHANNEL_STRATEGY } from './executives/growth/assets/as005-channel-strategy'
+import { AS007_BRAND_IDENTITY } from './executives/growth/assets/as007-brand-identity'
+import { AS008_BRAND_GUIDELINES } from './executives/growth/assets/as008-brand-guidelines'
+import { AS009_NARRATIVE_FRAMEWORK } from './executives/growth/assets/as009-narrative-framework'
+import { AS010_CONTENT_STRATEGY } from './executives/growth/assets/as010-content-strategy'
+import { AS011_SEO_STRATEGY } from './executives/growth/assets/as011-seo-strategy'
+import { AS012_CAMPAIGN_STRATEGY } from './executives/growth/assets/as012-campaign-strategy'
+import { AS013_SALES_ENABLEMENT_KIT } from './executives/growth/assets/as013-sales-enablement-kit'
+import { AS014_PROPOSAL_ROI_TOOLKIT } from './executives/growth/assets/as014-proposal-roi-toolkit'
+import { AS015_CUSTOMER_ACQUISITION_BLUEPRINT } from './executives/growth/assets/as015-customer-acquisition-blueprint'
+import { AS016_CUSTOMER_SUCCESS_FRAMEWORK } from './executives/growth/assets/as016-customer-success-framework'
+import { AS017_PRICING_PACKAGING_STRATEGY } from './executives/growth/assets/as017-pricing-packaging-strategy'
+import { AS018_MARKET_INTELLIGENCE_REPORT } from './executives/growth/assets/as018-market-intelligence-report'
+import { AS019_FOUNDER_DASHBOARD } from './executives/operations/assets/as019-founder-dashboard'
+import { AS020_KPI_DASHBOARD } from './executives/operations/assets/as020-kpi-dashboard'
+import { AS021_QSCORE_TREND_REPORT } from './executives/operations/assets/as021-qscore-trend-report'
+import { AS043_CUSTOMER_INTERVIEW_REPORT } from './executives/product/assets/as043-customer-interview-report'
+import { AS044_PMF_SCORECARD } from './executives/product/assets/as044-pmf-scorecard'
+import { AS045_PROBLEM_VALIDATION_REPORT } from './executives/product/assets/as045-problem-validation-report'
+import { AS046_PRODUCT_FEEDBACK_LOG } from './executives/product/assets/as046-product-feedback-log'
+import { AS047_FEATURE_PRIORITISATION_MATRIX } from './executives/product/assets/as047-feature-prioritisation-matrix'
+import { AS048_VALIDATION_ROADMAP } from './executives/product/assets/as048-validation-roadmap'
+import { AS049_FINANCIAL_MODEL } from './executives/finance/assets/as049-financial-model'
+import { AS050_BUDGET } from './executives/finance/assets/as050-budget'
+import { AS051_CASH_FLOW_FORECAST } from './executives/finance/assets/as051-cash-flow-forecast'
+import { AS052_SCENARIO_ANALYSIS } from './executives/finance/assets/as052-scenario-analysis'
+import { AS053_UNIT_ECONOMICS_MODEL } from './executives/finance/assets/as053-unit-economics-model'
 
 import { VALIDATE_ICPS } from './executives/growth/actions/validate-icps'
 import { INTERVIEW_CUSTOMERS } from './executives/growth/actions/interview-customers'
@@ -45,6 +81,55 @@ import { PRIORITIZE_CHANNELS } from './executives/growth/actions/prioritize-chan
 import { REVIEW_MESSAGING } from './executives/growth/actions/review-messaging'
 import { APPROVE_GTM_PLAN } from './executives/growth/actions/approve-gtm-plan'
 import { POST_TEAM_UPDATE } from './executives/growth/actions/post-team-update'
+import { REVIEW_BRAND_POSITIONING } from './executives/growth/actions/review-brand-positioning'
+import { UPDATE_WEBSITE_COPY } from './executives/growth/actions/update-website-copy'
+import { DEFINE_BRAND_VOICE } from './executives/growth/actions/define-brand-voice'
+import { APPROVE_MESSAGING } from './executives/growth/actions/approve-messaging'
+import { PUBLISH_CONTENT } from './executives/growth/actions/publish-content'
+import { LAUNCH_CAMPAIGN } from './executives/growth/actions/launch-campaign'
+import { OPTIMIZE_SEO } from './executives/growth/actions/optimize-seo'
+import { RUN_WEBINAR } from './executives/growth/actions/run-webinar'
+import { MONITOR_LEAD_GENERATION } from './executives/growth/actions/monitor-lead-generation'
+import { TRAIN_SALES_TEAM } from './executives/growth/actions/train-sales-team'
+import { UPDATE_SALES_MATERIALS } from './executives/growth/actions/update-sales-materials'
+import { PREPARE_CUSTOMER_DEMO } from './executives/growth/actions/prepare-customer-demo'
+import { REVIEW_WIN_LOSS_FEEDBACK } from './executives/growth/actions/review-win-loss-feedback'
+import { GENERATE_LEAD_LISTS } from './executives/growth/actions/generate-lead-lists'
+import { LAUNCH_OUTREACH } from './executives/growth/actions/launch-outreach'
+import { FOLLOW_UP_PROSPECTS } from './executives/growth/actions/follow-up-prospects'
+import { QUALIFY_LEADS } from './executives/growth/actions/qualify-leads'
+import { UPDATE_CRM } from './executives/growth/actions/update-crm'
+import { SCHEDULE_ONBOARDING } from './executives/growth/actions/schedule-onboarding'
+import { CONDUCT_QBR } from './executives/growth/actions/conduct-qbr'
+import { MONITOR_HEALTH_SCORES } from './executives/growth/actions/monitor-health-scores'
+import { COLLECT_FEEDBACK } from './executives/growth/actions/collect-feedback'
+import { LAUNCH_UPSELL_CAMPAIGN } from './executives/growth/actions/launch-upsell-campaign'
+import { REVIEW_PRICING } from './executives/growth/actions/review-pricing'
+import { TEST_NEW_PRICING } from './executives/growth/actions/test-new-pricing'
+import { APPROVE_DISCOUNTS } from './executives/growth/actions/approve-discounts'
+import { UPDATE_COMMERCIAL_TERMS } from './executives/growth/actions/update-commercial-terms'
+import { MONITOR_COMPETITORS } from './executives/growth/actions/monitor-competitors'
+import { CONDUCT_CUSTOMER_INTERVIEWS } from './executives/growth/actions/conduct-customer-interviews'
+import { UPDATE_MARKET_REPORT } from './executives/growth/actions/update-market-report'
+import { TRACK_INDUSTRY_TRENDS } from './executives/growth/actions/track-industry-trends'
+
+import { SCHEDULE_MONTHLY_REVIEW } from './executives/operations/actions/schedule-monthly-review'
+import { REVIEW_KPIS } from './executives/operations/actions/review-kpis'
+import { IDENTIFY_CONSTRAINTS } from './executives/operations/actions/identify-constraints'
+import { ASSIGN_PRIORITIES } from './executives/operations/actions/assign-priorities'
+import { APPROVE_ACTION_PLAN } from './executives/operations/actions/approve-action-plan'
+
+import { SCORE_PRODUCT_MARKET_FIT } from './executives/product/actions/score-product-market-fit'
+import { PRIORITIZE_FEATURES } from './executives/product/actions/prioritize-features'
+import { VALIDATE_CUSTOMER_PROBLEM } from './executives/product/actions/validate-customer-problem'
+import { SYNTHESIZE_CUSTOMER_FEEDBACK } from './executives/product/actions/synthesize-customer-feedback'
+import { APPROVE_VALIDATION_ROADMAP } from './executives/product/actions/approve-validation-roadmap'
+
+import { BUILD_FINANCIAL_MODEL } from './executives/finance/actions/build-financial-model'
+import { UPDATE_BUDGET } from './executives/finance/actions/update-budget'
+import { RUN_SCENARIO_ANALYSIS } from './executives/finance/actions/run-scenario-analysis'
+import { REVIEW_UNIT_ECONOMICS } from './executives/finance/actions/review-unit-economics'
+import { APPROVE_FINANCIAL_PLAN } from './executives/finance/actions/approve-financial-plan'
 
 export * from './types'
 
@@ -54,7 +139,19 @@ export * from './types'
 
 const EXECUTIVES: readonly Executive[] = [CEO, GROWTH, PRODUCT, OPERATIONS, FINANCE]
 
-const PROGRAMS: readonly ProgramTemplate[] = [P001_GTM]
+const PROGRAMS: readonly ProgramTemplate[] = [
+  P001_GTM,
+  P002_BRAND,
+  P003_DEMAND,
+  P004_GUIDE,
+  P005_ACQUIRE,
+  P006_SUCCESS,
+  P007_PRICING,
+  P008_INTEL,
+  P009_REVIEW,
+  P015_VALIDATE,
+  P023_MODEL,
+]
 
 const ASSETS: readonly AssetDef[] = [
   AS001_ICP_PROFILES,
@@ -62,6 +159,32 @@ const ASSETS: readonly AssetDef[] = [
   AS003_BUYER_JOURNEY_MAP,
   AS004_POSITIONING_MESSAGING,
   AS005_CHANNEL_STRATEGY,
+  AS007_BRAND_IDENTITY,
+  AS008_BRAND_GUIDELINES,
+  AS009_NARRATIVE_FRAMEWORK,
+  AS010_CONTENT_STRATEGY,
+  AS011_SEO_STRATEGY,
+  AS012_CAMPAIGN_STRATEGY,
+  AS013_SALES_ENABLEMENT_KIT,
+  AS014_PROPOSAL_ROI_TOOLKIT,
+  AS015_CUSTOMER_ACQUISITION_BLUEPRINT,
+  AS016_CUSTOMER_SUCCESS_FRAMEWORK,
+  AS017_PRICING_PACKAGING_STRATEGY,
+  AS018_MARKET_INTELLIGENCE_REPORT,
+  AS019_FOUNDER_DASHBOARD,
+  AS020_KPI_DASHBOARD,
+  AS021_QSCORE_TREND_REPORT,
+  AS043_CUSTOMER_INTERVIEW_REPORT,
+  AS044_PMF_SCORECARD,
+  AS045_PROBLEM_VALIDATION_REPORT,
+  AS046_PRODUCT_FEEDBACK_LOG,
+  AS047_FEATURE_PRIORITISATION_MATRIX,
+  AS048_VALIDATION_ROADMAP,
+  AS049_FINANCIAL_MODEL,
+  AS050_BUDGET,
+  AS051_CASH_FLOW_FORECAST,
+  AS052_SCENARIO_ANALYSIS,
+  AS053_UNIT_ECONOMICS_MODEL,
 ]
 
 const ACTIONS: readonly ActionDef[] = [
@@ -71,6 +194,52 @@ const ACTIONS: readonly ActionDef[] = [
   REVIEW_MESSAGING,
   APPROVE_GTM_PLAN,
   POST_TEAM_UPDATE,
+  REVIEW_BRAND_POSITIONING,
+  UPDATE_WEBSITE_COPY,
+  DEFINE_BRAND_VOICE,
+  APPROVE_MESSAGING,
+  PUBLISH_CONTENT,
+  LAUNCH_CAMPAIGN,
+  OPTIMIZE_SEO,
+  RUN_WEBINAR,
+  MONITOR_LEAD_GENERATION,
+  TRAIN_SALES_TEAM,
+  UPDATE_SALES_MATERIALS,
+  PREPARE_CUSTOMER_DEMO,
+  REVIEW_WIN_LOSS_FEEDBACK,
+  GENERATE_LEAD_LISTS,
+  LAUNCH_OUTREACH,
+  FOLLOW_UP_PROSPECTS,
+  QUALIFY_LEADS,
+  UPDATE_CRM,
+  SCHEDULE_ONBOARDING,
+  CONDUCT_QBR,
+  MONITOR_HEALTH_SCORES,
+  COLLECT_FEEDBACK,
+  LAUNCH_UPSELL_CAMPAIGN,
+  REVIEW_PRICING,
+  TEST_NEW_PRICING,
+  APPROVE_DISCOUNTS,
+  UPDATE_COMMERCIAL_TERMS,
+  MONITOR_COMPETITORS,
+  CONDUCT_CUSTOMER_INTERVIEWS,
+  UPDATE_MARKET_REPORT,
+  TRACK_INDUSTRY_TRENDS,
+  SCHEDULE_MONTHLY_REVIEW,
+  REVIEW_KPIS,
+  IDENTIFY_CONSTRAINTS,
+  ASSIGN_PRIORITIES,
+  APPROVE_ACTION_PLAN,
+  SCORE_PRODUCT_MARKET_FIT,
+  PRIORITIZE_FEATURES,
+  VALIDATE_CUSTOMER_PROBLEM,
+  SYNTHESIZE_CUSTOMER_FEEDBACK,
+  APPROVE_VALIDATION_ROADMAP,
+  BUILD_FINANCIAL_MODEL,
+  UPDATE_BUDGET,
+  RUN_SCENARIO_ANALYSIS,
+  REVIEW_UNIT_ECONOMICS,
+  APPROVE_FINANCIAL_PLAN,
 ]
 
 // ─── Validation ───────────────────────────────────────────────────────────────

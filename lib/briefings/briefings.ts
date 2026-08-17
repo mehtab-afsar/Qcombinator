@@ -90,6 +90,31 @@ export async function getBriefings(
   return (data ?? []).map(r => toBriefing(r as BriefingRow))
 }
 
+/** A Briefing with its Registry Program id resolved — see attachProgramTemplateId. */
+export interface BriefingWithProgram extends Briefing {
+  /** The Registry Program id, e.g. 'P001' — null if programId is null or unresolvable.
+   *  Briefing.programId itself is a DATABASE row id (a ProgramInstance's own id), not this —
+   *  same distinction lib/actions/log.ts's attachOwners() draws for actions, mirrored here
+   *  rather than reused, since that function is tightly typed to ActionLogEntry. */
+  programTemplateId: string | null
+}
+
+/**
+ * Resolve each briefing's database-row programId to the Registry Program id (e.g. 'P001') a
+ * founder-facing UI can actually group/link by. Pure — unit-testable without a database, same
+ * shape as attachOwners (lib/actions/log.ts).
+ */
+export function attachProgramTemplateId(
+  briefings: readonly Briefing[],
+  programs: readonly { id: string; templateId: string }[],
+): BriefingWithProgram[] {
+  const templateIdByRowId = new Map(programs.map(p => [p.id, p.templateId]))
+  return briefings.map(b => ({
+    ...b,
+    programTemplateId: b.programId ? templateIdByRowId.get(b.programId) ?? null : null,
+  }))
+}
+
 /**
  * From a newest-first list, keep only the most recent briefing per Program. Pure — split
  * out so it can be unit-tested without a database.

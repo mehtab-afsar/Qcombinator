@@ -97,8 +97,12 @@ describe('P001 with the CTO prompt S004 is invalid', () => {
 
   it('is an ownership check, not a text check', () => {
     // The Registry says P001.owner === 'growth'; product's ref is S004. The
-    // failure needs no S004 text at all — which is why no S004 prompt is
-    // registered, and why F05 seeded the product executive.
+    // failure needs no S004 text at all — it fires on ownership before any
+    // prompt is fetched. That was true when F05 first seeded the product
+    // executive with no S004 text registered, and it stays true now that
+    // S004's real text is seeded too (P015's voice prompt): the ownership
+    // check still fails first, so a real prompt sitting behind 'product'
+    // changes nothing about why this throws.
     expect(getProgram('P001').owner).toBe('growth')
     expect(getExecutive('product').systemPromptRef).toBe('S004')
     expect(wrong).toThrow(PromptValidationError)
@@ -291,16 +295,16 @@ describe('validation rules', () => {
   }
 
   it('blocks an asset that is not in the Registry at all', () => {
-    // AS013 belongs to P004 and is not seeded, so the Registry rejects it before
-    // the Composer's own rule is reached. Both block; this asserts what actually
-    // happens rather than the error I expected.
+    // AS999 is not seeded at all, so the Registry rejects it before the
+    // Composer's own rule is reached.
     //
-    // NOTE: `asset_not_in_program` is currently UNREACHABLE — every seeded Asset
-    // belongs to P001, and P001 is the only seeded Program, so no legal pairing
-    // can be wrong. It becomes reachable the moment a second Program is seeded;
-    // F05's fixture test already exercises that relationship.
-    expect(() => composePrompt({ ...valid, assetId: 'AS013' as never })).toThrow(
-      /Unknown asset: AS013/,
+    // (Prior to P002 being seeded, this test used AS013 — the first asset id
+    // outside P001's own range. That stopped being a valid example once AS013
+    // was seeded for real, as P004's Sales Enablement Kit; AS999 keeps the
+    // same intent — an id that resolves to nothing — without colliding with a
+    // real Registry entry.)
+    expect(() => composePrompt({ ...valid, assetId: 'AS999' as never })).toThrow(
+      /Unknown asset: AS999/,
     )
   })
 

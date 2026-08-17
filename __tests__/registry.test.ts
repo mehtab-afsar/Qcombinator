@@ -189,6 +189,152 @@ describe('P001 GTM', () => {
   })
 })
 
+// ─── P002's scope (F05 acceptance — the second Program, seeded for real) ──────
+
+describe('P002 Brand Strategy', () => {
+  it('has AS004 (shared with P001) plus AS007–AS009 (workbook Asset Registry)', () => {
+    expect(getProgram('P002').assets).toEqual(['AS004', 'AS007', 'AS008', 'AS009'])
+  })
+
+  it('is owned by growth — the same executive as P001, no new voice prompt needed', () => {
+    expect(getProgram('P002').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P002').programPromptRef).toBe('P002')
+    for (const assetId of getProgram('P002').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P003 Demand Generation', () => {
+  it('has AS010–AS012 (workbook Asset Registry) — none shared with another Program', () => {
+    expect(getProgram('P003').assets).toEqual(['AS010', 'AS011', 'AS012'])
+  })
+
+  it('is owned by growth — the same executive as P001/P002, no new voice prompt needed', () => {
+    expect(getProgram('P003').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P003').programPromptRef).toBe('P003')
+    for (const assetId of getProgram('P003').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P004 Sales Enablement', () => {
+  it('has AS013–AS014 (workbook Asset Registry) — neither shared with another Program', () => {
+    expect(getProgram('P004').assets).toEqual(['AS013', 'AS014'])
+  })
+
+  it('is owned by growth — the same executive as P001/P002/P003, no new voice prompt needed', () => {
+    expect(getProgram('P004').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P004').programPromptRef).toBe('P004')
+    for (const assetId of getProgram('P004').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P005 Customer Acquisition', () => {
+  it('has exactly AS015 (workbook Asset Registry) — not shared with another Program', () => {
+    expect(getProgram('P005').assets).toEqual(['AS015'])
+  })
+
+  it('is owned by growth — the same executive as P001–P004, no new voice prompt needed', () => {
+    expect(getProgram('P005').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P005').programPromptRef).toBe('P005')
+    for (const assetId of getProgram('P005').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P006 Customer Success', () => {
+  it('has exactly AS016 (workbook Asset Registry) — not shared with another Program', () => {
+    expect(getProgram('P006').assets).toEqual(['AS016'])
+  })
+
+  it('is owned by growth — the same executive as P001–P005, no new voice prompt needed', () => {
+    expect(getProgram('P006').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P006').programPromptRef).toBe('P006')
+    for (const assetId of getProgram('P006').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P007 Pricing & Packaging', () => {
+  it('has exactly AS017 (workbook Asset Registry) — not shared with another Program', () => {
+    expect(getProgram('P007').assets).toEqual(['AS017'])
+  })
+
+  it('is owned by growth — the same executive as P001–P006, no new voice prompt needed', () => {
+    expect(getProgram('P007').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P007').programPromptRef).toBe('P007')
+    for (const assetId of getProgram('P007').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P008 Market Intelligence', () => {
+  it('has exactly AS018 (workbook Asset Registry) — not shared with another Program', () => {
+    expect(getProgram('P008').assets).toEqual(['AS018'])
+  })
+
+  it('is owned by growth — the same executive as P001–P007, no new voice prompt needed', () => {
+    expect(getProgram('P008').owner).toBe('growth')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P008').programPromptRef).toBe('P008')
+    for (const assetId of getProgram('P008').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P009 Review', () => {
+  it('has exactly AS019-AS021 — NOT the 5 assets named in prose', () => {
+    // Both the workbook's Program Registry prose and S005's own "Program Portfolio"
+    // section name five assets (Founder Dashboard, Monthly Review Report, KPI
+    // Dashboard, Q-Score Trend, Executive Summary), but the workbook's Asset
+    // Registry sheet only ever assigned a real id to three of them. Seeding all
+    // five would bake in a workbook contradiction — see
+    // lib/registry/executives/operations/programs/p009-review.ts for the full
+    // reasoning.
+    expect(getProgram('P009').assets).toEqual(['AS019', 'AS020', 'AS021'])
+  })
+
+  it('is owned by operations — the first non-Growth Program — whose system prompt is S005', () => {
+    expect(getProgram('P009').owner).toBe('operations')
+    expect(getExecutive('operations').systemPromptRef).toBe('S005')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P009').programPromptRef).toBe('P009')
+    for (const assetId of getProgram('P009').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
 // ─── ADR-008: no runsWhen ─────────────────────────────────────────────────────
 
 describe('ADR-008 — the rhythm runs all contract-active programs', () => {
@@ -238,6 +384,380 @@ describe('P001 actions — approval surface', () => {
   })
 })
 
+describe('P002 actions — approval surface', () => {
+  it('all four are internal, reversible and connector-free', () => {
+    // No website/CMS Connector exists yet (only gmail, slack, stripe, posthog are
+    // registered), so update_website_copy drafts copy rather than publishing it —
+    // see update-website-copy.ts for the reasoning. If a real Connector is added
+    // later, this is the test that should start failing.
+    for (const id of ['review_brand_positioning', 'update_website_copy', 'define_brand_voice', 'approve_messaging']) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('approve_messaging is NOT an approval gate (ADR-002)', () => {
+    // Same naming trap as P001's approve_gtm_plan — see that file's own guard.
+    expect(getAction('approve_messaging').irreversible).toBe(false)
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P002').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P003 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No CMS, ads or webinar Connector exists yet (only gmail, slack, stripe,
+    // posthog are registered), so publish_content/launch_campaign/run_webinar
+    // draft or plan rather than actually publishing/spending/hosting — see
+    // each file for the reasoning. If a real Connector is added later, this is
+    // the test that should start failing.
+    for (const id of [
+      'publish_content',
+      'launch_campaign',
+      'optimize_seo',
+      'run_webinar',
+      'monitor_lead_generation',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P003').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P004 actions — approval surface', () => {
+  it('all four are internal, reversible and connector-free', () => {
+    // No LMS/training, deck/CMS/CRM or demo/screen-share Connector exists yet
+    // (only gmail, slack, stripe, posthog are registered), so
+    // train_sales_team/update_sales_materials/prepare_customer_demo draft or
+    // plan rather than actually delivering/publishing — see each file for the
+    // reasoning. If a real Connector is added later, this is the test that
+    // should start failing.
+    for (const id of [
+      'train_sales_team',
+      'update_sales_materials',
+      'prepare_customer_demo',
+      'review_win_loss_feedback',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P004').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P005 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No prospecting/enrichment, outreach-send or CRM Connector exists yet
+    // (only gmail, slack, stripe, posthog are registered), so
+    // generate_lead_lists/launch_outreach/follow_up_prospects/qualify_leads/
+    // update_crm draft or recommend rather than actually sending or writing
+    // live — see each file for the reasoning. launch_outreach and
+    // follow_up_prospects are the closest either has come to a real Gmail
+    // send like P001's interview_customers, and were deliberately kept
+    // draft-only rather than made a second irreversible send action — see
+    // those two files. If a real Connector is added later, this is the test
+    // that should start failing.
+    for (const id of [
+      'generate_lead_lists',
+      'launch_outreach',
+      'follow_up_prospects',
+      'qualify_leads',
+      'update_crm',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P005').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P006 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No calendar, meeting, survey/feedback-tool or CRM/analytics write-back
+    // Connector exists yet (only gmail, slack, stripe, posthog are
+    // registered), so schedule_onboarding/conduct_qbr/monitor_health_scores/
+    // collect_feedback/launch_upsell_campaign produce plans, documents or
+    // recommendations rather than actually booking, presenting, writing or
+    // sending — see each file for the reasoning. launch_upsell_campaign is
+    // the closest this batch comes to a real Gmail send like P001's
+    // interview_customers, and was deliberately kept plan-only rather than
+    // made a second irreversible send action — see that file. If a real
+    // Connector is added later, this is the test that should start failing.
+    for (const id of [
+      'schedule_onboarding',
+      'conduct_qbr',
+      'monitor_health_scores',
+      'collect_feedback',
+      'launch_upsell_campaign',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P006').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P007 actions — approval surface', () => {
+  it('all four are internal, reversible and connector-free', () => {
+    // No live-price-write Connector exists — the registered Stripe connector is
+    // read/sync only (billing status; see lib/registry/types.ts's ConnectorId
+    // comment) — so review_pricing/test_new_pricing/approve_discounts/
+    // update_commercial_terms produce analysis, a test plan, a governance
+    // record and draft contract language rather than actually changing a live
+    // price. If a real price-writing Connector is added later, this is the
+    // test that should start failing.
+    for (const id of [
+      'review_pricing',
+      'test_new_pricing',
+      'approve_discounts',
+      'update_commercial_terms',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('approve_discounts is NOT an approval gate (ADR-002)', () => {
+    // Same naming trap as P001's approve_gtm_plan and P002's approve_messaging
+    // — see those files' own guards. This records discount governance already
+    // decided; it does not authorise any individual discount or wait on the
+    // founder.
+    expect(getAction('approve_discounts').irreversible).toBe(false)
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P007').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P008 actions — approval surface', () => {
+  it('all four are internal, reversible and connector-free', () => {
+    // No competitive-intelligence, news-monitoring or outreach-send Connector
+    // exists — only gmail, slack, gmail_read, stripe and posthog are
+    // registered (see lib/registry/types.ts's ConnectorId comment) — so
+    // monitor_competitors/conduct_customer_interviews/update_market_report/
+    // track_industry_trends produce analysis, an interview guide or synthesis,
+    // and document updates rather than a live monitoring feed or an outbound
+    // email. conduct_customer_interviews is the closest this batch comes to
+    // P001's real Gmail-send Action interview_customers by name, and was
+    // deliberately kept draft-only rather than made a second irreversible send
+    // action — see that file. If a real Connector is added later, this is the
+    // test that should start failing.
+    for (const id of [
+      'monitor_competitors',
+      'conduct_customer_interviews',
+      'update_market_report',
+      'track_industry_trends',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P008').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P015 Validate', () => {
+  it('has exactly AS043-AS048 — six ids newly minted for this build (founder-authorized)', () => {
+    // Unlike every Program before it, the workbook's Asset Registry sheet never
+    // assigned P015's named assets a real id at all (it only ever assigned ids
+    // through AS042). The founder was asked directly and explicitly chose to
+    // mint AS043-AS048 now rather than leave P015 asset-less — see
+    // lib/registry/executives/product/programs/p015-validate.ts for the full
+    // reasoning.
+    expect(getProgram('P015').assets).toEqual(['AS043', 'AS044', 'AS045', 'AS046', 'AS047', 'AS048'])
+  })
+
+  it('is owned by product — the first Product Program — whose system prompt is S004', () => {
+    expect(getProgram('P015').owner).toBe('product')
+    expect(getExecutive('product').systemPromptRef).toBe('S004')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P015').programPromptRef).toBe('P015')
+    for (const assetId of getProgram('P015').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P023 Model', () => {
+  it('has exactly AS049-AS053 — five ids newly minted for this build (founder-authorized)', () => {
+    // Same situation as P015: the workbook's Asset Registry sheet never
+    // assigned P023's named assets a real id at all (its last real
+    // assignment was AS048, minted for P015). The founder was asked directly
+    // and explicitly chose to mint AS049-AS053 now rather than leave P023
+    // asset-less — see lib/registry/executives/finance/programs/p023-model.ts
+    // for the full reasoning.
+    expect(getProgram('P023').assets).toEqual(['AS049', 'AS050', 'AS051', 'AS052', 'AS053'])
+  })
+
+  it('is owned by finance — the first Finance Program — whose system prompt is S006', () => {
+    expect(getProgram('P023').owner).toBe('finance')
+    expect(getExecutive('finance').systemPromptRef).toBe('S006')
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P023').programPromptRef).toBe('P023')
+    for (const assetId of getProgram('P023').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P009 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No calendar, analytics-write or project-management Connector exists — only
+    // gmail, slack, gmail_read, stripe and posthog are registered (see
+    // lib/registry/types.ts's ConnectorId comment) — so schedule_monthly_review/
+    // review_kpis/identify_constraints/assign_priorities/approve_action_plan
+    // produce a schedule, an analysis, a named constraint, a ranked list and a
+    // recorded plan rather than a live calendar booking or metrics write. If a
+    // real Connector is added later, this is the test that should start failing.
+    for (const id of [
+      'schedule_monthly_review',
+      'review_kpis',
+      'identify_constraints',
+      'assign_priorities',
+      'approve_action_plan',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('approve_action_plan is NOT an approval gate (ADR-002)', () => {
+    // Same naming trap as P001's approve_gtm_plan, P002's approve_messaging and
+    // P007's approve_discounts — see those files' own guards. This records a
+    // ranked plan already reasoned through; it does not authorise it or wait on
+    // the founder.
+    expect(getAction('approve_action_plan').irreversible).toBe(false)
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P009').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P015 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No interview-tooling, analytics-write or roadmap/project-management
+    // Connector exists — only gmail, slack, gmail_read, stripe and posthog are
+    // registered (see lib/registry/types.ts's ConnectorId comment) — so
+    // score_product_market_fit/prioritize_features/validate_customer_problem/
+    // synthesize_customer_feedback/approve_validation_roadmap produce a
+    // scorecard, a ranked matrix, an analysis, a log and a recorded roadmap
+    // rather than a live tool write. If a real Connector is added later, this
+    // is the test that should start failing.
+    for (const id of [
+      'score_product_market_fit',
+      'prioritize_features',
+      'validate_customer_problem',
+      'synthesize_customer_feedback',
+      'approve_validation_roadmap',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('approve_validation_roadmap is NOT an approval gate (ADR-002)', () => {
+    // Same naming trap as P001's approve_gtm_plan, P002's approve_messaging,
+    // P007's approve_discounts and P009's approve_action_plan — see those
+    // files' own guards. This records a validation roadmap already reasoned
+    // through; it does not authorise it or wait on the founder.
+    expect(getAction('approve_validation_roadmap').irreversible).toBe(false)
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P015').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
+describe('P023 actions — approval surface', () => {
+  it('all five are internal, reversible and connector-free', () => {
+    // No accounting, modelling or billing-write Connector exists — only
+    // gmail, slack, gmail_read, stripe and posthog are registered (see
+    // lib/registry/types.ts's ConnectorId comment) — so build_financial_model/
+    // update_budget/run_scenario_analysis/review_unit_economics/
+    // approve_financial_plan produce a model, a reconciled budget, a
+    // stress-tested analysis, a metrics review and a recorded plan rather
+    // than a live accounting-system write. The registered Stripe connector is
+    // read/sync only. If a real Connector is added later, this is the test
+    // that should start failing.
+    for (const id of [
+      'build_financial_model',
+      'update_budget',
+      'run_scenario_analysis',
+      'review_unit_economics',
+      'approve_financial_plan',
+    ]) {
+      const action = getAction(id)
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('approve_financial_plan is NOT an approval gate (ADR-002)', () => {
+    // Same naming trap as P001's approve_gtm_plan, P002's approve_messaging,
+    // P007's approve_discounts, P009's approve_action_plan and P015's
+    // approve_validation_roadmap — see those files' own guards. This records
+    // a financial plan already reasoned through; it does not authorise it or
+    // wait on the founder.
+    expect(getAction('approve_financial_plan').irreversible).toBe(false)
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P023').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+})
+
 // ─── The roster ───────────────────────────────────────────────────────────────
 
 describe('executive roster (PRD §7.1)', () => {
@@ -259,64 +779,109 @@ describe('executive roster (PRD §7.1)', () => {
     expect(getProgram('P001').owner).not.toBe('product')
   })
 
-  it('only growth owns a seeded program', () => {
-    expect(listProgramsForExecutive('growth').map(p => p.id)).toEqual(['P001'])
-    for (const id of ['ceo', 'product', 'operations', 'finance']) {
-      expect(listProgramsForExecutive(id)).toEqual([])
-    }
+  it('growth now owns all eight seeded programs — the full P001–P008 roster', () => {
+    expect(listProgramsForExecutive('growth').map(p => p.id)).toEqual([
+      'P001', 'P002', 'P003', 'P004', 'P005', 'P006', 'P007', 'P008',
+    ])
+    expect(listProgramsForExecutive('ceo')).toEqual([])
+  })
+
+  it('operations now owns its first seeded program, P009', () => {
+    // The first Program ever seeded for an executive other than Growth.
+    expect(listProgramsForExecutive('operations').map(p => p.id)).toEqual(['P009'])
+  })
+
+  it('product now owns its first seeded program, P015', () => {
+    // The first Program ever seeded for an executive other than Growth or
+    // Operations.
+    expect(listProgramsForExecutive('product').map(p => p.id)).toEqual(['P015'])
+  })
+
+  it('finance now owns its first seeded program, P023', () => {
+    // The first Program ever seeded for an executive other than Growth,
+    // Operations or Product.
+    expect(listProgramsForExecutive('finance').map(p => p.id)).toEqual(['P023'])
   })
 })
 
 // ─── The shared asset ─────────────────────────────────────────────────────────
 
 describe('AS004 — the shared asset', () => {
-  it('is owned by P001, with sharedWith unset until P002 is seeded', () => {
-    // The workbook says AS004 belongs to "P001 - GTM, P002 - Brand". P002 is not
-    // seeded, and a reference to an unseeded Program would fail the load — the
-    // same rule that keeps growth.programs to ['P001'].
+  it('is owned by P001, shared with P002 (workbook: "P001 - GTM, P002 - Brand")', () => {
+    // sharedWith was unset until P002 existed — a reference to an unseeded
+    // Program would have failed the load. Now that P002 is seeded and lists
+    // AS004 among its assets, the link must resolve both ways (validateRegistry
+    // checks exactly that).
     expect(getAsset('AS004').program).toBe('P001')
-    expect(getAsset('AS004').sharedWith).toBeUndefined()
+    expect(getAsset('AS004').sharedWith).toEqual(['P002'])
   })
 
   it('listProgramsForAsset returns owner + sharedWith', () => {
     // F11 must validate writes against this, not against asset.program alone —
     // otherwise a legitimate P002 write to AS004 would be blocked.
-    expect(listProgramsForAsset('AS004')).toEqual(['P001'])
+    expect(listProgramsForAsset('AS004')).toEqual(['P001', 'P002'])
     expect(listProgramsForAsset('AS001')).toEqual(['P001'])
   })
 })
 
 // ─── F05's headline claim ─────────────────────────────────────────────────────
 
-describe('adding a Program requires no new route (F05 acceptance)', () => {
-  // P002 Brand is the real next Program (workbook: assets AS004, AS007–AS009).
-  // It shares AS004 with P001, which makes it the exact case the sharedWith
-  // decision exists for.
-  const p002: ProgramTemplate = {
-    id: 'P002',
-    handle: 'Brand',
-    name: 'Brand Strategy',
+describe('adding a Program requires no new route (F05 acceptance) — the general mechanism', () => {
+  // P002 itself (above) already proves this happened for real. This exercises
+  // the same validateRegistry mechanism generically, with a throwaway id, so the
+  // guard on "the share must be declared both ways" survives as a test even
+  // though P002 is no longer a hypothetical.
+  const p997: ProgramTemplate = {
+    id: 'P997',
+    handle: 'Test',
+    name: 'Test Program',
     owner: 'growth',
-    objective: 'Define and strengthen the brand.',
-    successMetric: 'Brand is coherent and differentiated.',
-    assets: ['AS004'],
+    objective: 'Prove the mechanism.',
+    successMetric: 'n/a',
+    assets: ['AS005'],
     actions: ['review_messaging'],
-    programPromptRef: 'P002',
+    programPromptRef: 'P001',
   }
 
   const seededAssets = () =>
-    ['AS001', 'AS002', 'AS003', 'AS004', 'AS005'].map(getAsset)
-  const seededActions = () => getProgram('P001').actions.map(getAction)
+    [
+      'AS001', 'AS002', 'AS003', 'AS004', 'AS005', 'AS007', 'AS008', 'AS009', 'AS010', 'AS011', 'AS012',
+      'AS013', 'AS014', 'AS015', 'AS016', 'AS017', 'AS018', 'AS019', 'AS020', 'AS021',
+      'AS043', 'AS044', 'AS045', 'AS046', 'AS047', 'AS048',
+      'AS049', 'AS050', 'AS051', 'AS052', 'AS053',
+    ].map(getAsset)
+  const seededActions = () =>
+    [
+      ...getProgram('P001').actions,
+      ...getProgram('P002').actions,
+      ...getProgram('P003').actions,
+      ...getProgram('P004').actions,
+      ...getProgram('P005').actions,
+      ...getProgram('P006').actions,
+      ...getProgram('P007').actions,
+      ...getProgram('P008').actions,
+      ...getProgram('P009').actions,
+      ...getProgram('P015').actions,
+      ...getProgram('P023').actions,
+    ].map(getAction)
 
   it('a brand new Program resolves through the same loader, unchanged', () => {
-    // Config only: no route, no migration, no engine change. AS004 gains
-    // sharedWith: ['P002'] — the declaration that P002 may maintain it.
-    const as004 = { ...getAsset('AS004'), sharedWith: ['P002'] as ProgramTemplate['id'][] }
+    // Config only: no route, no migration, no engine change. AS005 gains
+    // sharedWith: ['P997'] — the declaration that P997 may maintain it.
+    // operations, product and finance are included unmodified so P009 (owner
+    // 'operations'), P015 (owner 'product') and P023 (owner 'finance'), all
+    // now part of listPrograms(), still resolve an owner.
+    const as005 = { ...getAsset('AS005'), sharedWith: ['P997'] as ProgramTemplate['id'][] }
 
     const problems = validateRegistry(
-      [{ ...getExecutive('growth'), programs: ['P001', 'P002'] }],
-      [...listPrograms(), p002],
-      [...seededAssets().filter(a => a.id !== 'AS004'), as004],
+      [
+        { ...getExecutive('growth'), programs: ['P001', 'P002', 'P997'] },
+        getExecutive('operations'),
+        getExecutive('product'),
+        getExecutive('finance'),
+      ],
+      [...listPrograms(), p997],
+      [...seededAssets().filter(a => a.id !== 'AS005'), as005],
       seededActions(),
     )
 
@@ -324,18 +889,23 @@ describe('adding a Program requires no new route (F05 acceptance)', () => {
   })
 
   it('and it CANNOT be added while forgetting to declare the share', () => {
-    // The guard that makes AS004's unset sharedWith safe. Seed P002 listing AS004
-    // but leave AS004 naming only P001, and the load fails — rather than Story 2
-    // silently blocking a legitimate P002 write months later.
+    // The guard that makes an unset sharedWith safe. Seed P997 listing AS005
+    // but leave AS005 naming only P001, and the load fails — rather than Story 2
+    // silently blocking a legitimate P997 write months later.
     const problems = validateRegistry(
-      [{ ...getExecutive('growth'), programs: ['P001', 'P002'] }],
-      [...listPrograms(), p002],
-      seededAssets(), // AS004 as seeded today: owner P001, no sharedWith
+      [
+        { ...getExecutive('growth'), programs: ['P001', 'P002', 'P997'] },
+        getExecutive('operations'),
+        getExecutive('product'),
+        getExecutive('finance'),
+      ],
+      [...listPrograms(), p997],
+      seededAssets(), // AS005 as seeded today: owner P001, no sharedWith
       seededActions(),
     )
 
     expect(problems).toContain(
-      "Program 'P002' lists asset 'AS004', but 'AS004' does not name it as its owner or in sharedWith (it names P001)",
+      "Program 'P997' lists asset 'AS005', but 'AS005' does not name it as its owner or in sharedWith (it names P001)",
     )
   })
 })

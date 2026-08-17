@@ -46,12 +46,19 @@ export async function GET(): Promise<NextResponse> {
     // Registry already has the answer (an Asset's owning Program's owner), so this is free.
     const assetIds = new Set<string>()
     const ownerByAssetId = new Map<string, string>()
+    // Known narrow gap: a shared Asset (AssetDef.sharedWith, e.g. AS004 under both P001 and
+    // P002) only ever gets ONE entry here — whichever Program is processed last in
+    // contract.activePrograms wins. It'll show under exactly one Program tab, not both.
+    // Fixing that means deciding whether a shared Asset should render twice, which is a real
+    // product question, not a bug to silently patch here — left as a known follow-up.
+    const programByAssetId = new Map<string, string>()
     for (const templateId of contract.activePrograms) {
       let program
       try { program = getProgram(templateId) } catch { continue }
       for (const assetId of program.assets) {
         assetIds.add(assetId)
         ownerByAssetId.set(assetId, program.owner)
+        programByAssetId.set(assetId, templateId)
       }
     }
 
@@ -68,6 +75,7 @@ export async function GET(): Promise<NextResponse> {
         name: def.name,
         outputSchema: def.outputSchema,
         executiveId: ownerByAssetId.get(id) ?? null,
+        programTemplateId: programByAssetId.get(id) ?? null,
         asset: versionByAssetId.get(id) ?? null,
         versionCount: versionCounts.get(id) ?? 0,
       }

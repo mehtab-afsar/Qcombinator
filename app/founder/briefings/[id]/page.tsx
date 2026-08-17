@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { font } from '@/features/shared/tokens'
+import { programName } from '@/features/executive/lib/programLabel'
 
 interface ChangedAsset { assetId: string; name?: string }
 interface BriefingBody {
@@ -30,7 +31,10 @@ interface BriefingBody {
 }
 interface Briefing {
   id: string
+  /** The underlying database row id — not the Registry Program code. Use programTemplateId. */
   programId: string | null
+  /** The Registry Program id, e.g. 'P001' — resolved server-side (attachProgramTemplateId). */
+  programTemplateId: string | null
   executiveId: string | null
   verdict: string
   body: unknown
@@ -91,9 +95,26 @@ export default function BriefingDetailPage() {
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         <BackLink />
 
-        <p style={{ color: muted, fontSize: 13, margin: '20px 0 0' }}>
-          {new Date(briefing.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+          <p style={{ color: muted, fontSize: 13, margin: 0 }}>
+            {new Date(briefing.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+          </p>
+          {/* Closes a real gap: until this, reading a briefing gave no way to tell which Program
+              wrote it, or click through to it. programId (the row id) is the URL's ?program=
+              value — page.tsx matches ProgramInstance.id, not the Registry code; programTemplateId
+              is only for the display name (programName). */}
+          {briefing.executiveId && briefing.programId && programName(briefing.programTemplateId) && (
+            <Link
+              href={`/founder/executive/${briefing.executiveId}?program=${briefing.programId}`}
+              style={{
+                color: blue, fontSize: 12, textDecoration: 'none',
+                border: `1px solid ${bdr}`, borderRadius: 6, padding: '2px 8px',
+              }}
+            >
+              {programName(briefing.programTemplateId)}
+            </Link>
+          )}
+        </div>
         <h1 style={{
           fontFamily: font.family.serif, fontSize: 26, fontWeight: 600, color: ink,
           margin: '4px 0 0', lineHeight: 1.3,

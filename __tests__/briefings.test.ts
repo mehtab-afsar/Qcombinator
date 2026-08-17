@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { pickLatestPerProgram, type Briefing } from '@/lib/briefings/briefings'
+import { pickLatestPerProgram, attachProgramTemplateId, type Briefing } from '@/lib/briefings/briefings'
 
 const b = (over: Partial<Briefing>): Briefing => ({
   id: 'x', founderId: 'f', programId: 'P1', executionId: 'e', contractId: null,
@@ -34,6 +34,34 @@ describe('F12 pickLatestPerProgram', () => {
 
   it('returns [] for no briefings', () => {
     expect(pickLatestPerProgram([])).toEqual([])
+  })
+})
+
+describe('F13 attachProgramTemplateId — resolving the DB row id to a Registry Program id', () => {
+  const programs = [
+    { id: 'row-uuid-1', templateId: 'P001' },
+    { id: 'row-uuid-2', templateId: 'P002' },
+  ]
+
+  it('resolves a briefing whose programId matches a known ProgramInstance row', () => {
+    const [resolved] = attachProgramTemplateId([b({ programId: 'row-uuid-1' })], programs)
+    expect(resolved.programTemplateId).toBe('P001')
+  })
+
+  it('leaves programTemplateId null when the briefing has no programId', () => {
+    const [resolved] = attachProgramTemplateId([b({ programId: null })], programs)
+    expect(resolved.programTemplateId).toBeNull()
+  })
+
+  it('leaves programTemplateId null when the row id matches nothing seeded (stale/deleted program)', () => {
+    const [resolved] = attachProgramTemplateId([b({ programId: 'row-uuid-gone' })], programs)
+    expect(resolved.programTemplateId).toBeNull()
+  })
+
+  it('does not mutate the original briefing, only adds the new field', () => {
+    const original = b({ programId: 'row-uuid-2' })
+    const [resolved] = attachProgramTemplateId([original], programs)
+    expect(resolved).toMatchObject({ ...original, programTemplateId: 'P002' })
   })
 })
 

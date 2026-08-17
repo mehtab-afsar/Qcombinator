@@ -17,13 +17,16 @@ import { trackBriefingOpened } from '@/lib/analytics-client'
 import { bdr, ink, muted, blue, green, alpha } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
+import { programName } from '../lib/programLabel'
 import { useCycleLive } from '../lib/useCycleLive'
 
 interface Briefing {
   id: string
+  /** The underlying database row id — not the Registry Program code. Use programTemplateId. */
   programId: string | null
-  /** Already returned by GET /api/briefings (lib/briefings/briefings.ts) but silently dropped
-   *  here until the Command View redesign needed it to group briefings by Executive. */
+  /** The Registry Program id, e.g. 'P001' — resolved server-side (lib/briefings/briefings.ts's
+   *  attachProgramTemplateId). Null only if unresolvable. */
+  programTemplateId: string | null
   executiveId: string | null
   verdict: string
   body: unknown
@@ -54,8 +57,15 @@ function changedAssets(body: unknown): ChangedAsset[] {
 }
 
 /** @param executiveId scope to one executive's briefings — the detail page. Omitted on the
- *    roster page, which shows the whole team's history. */
-export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
+ *    roster page, which shows the whole team's history.
+ *  @param programTemplateId narrow further to one Program (e.g. 'P001') on a multi-Program
+ *    executive's page. Additive — omitted means "every Program this executive owns," the same
+ *    behavior this panel always had. When set, each entry's own Program label is hidden (every
+ *    row already belongs to the same one); when unset and more than one Program is present in
+ *    the results, each entry shows which Program wrote it. */
+export function BriefingsPanel({
+  executiveId, programTemplateId,
+}: { executiveId?: string; programTemplateId?: string } = {}) {
   const [briefings, setBriefings] = useState<Briefing[] | null>(null)
   const [failed, setFailed] = useState(false)
   // A cycle finishing is exactly when a new briefing exists server-side — without this, a
@@ -70,11 +80,14 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
       if (!res.ok) { setFailed(true); return }
       const data = await res.json()
       const all: Briefing[] = data.briefings ?? []
-      setBriefings(executiveId ? all.filter(b => b.executiveId === executiveId) : all)
+      setBriefings(all.filter(b =>
+        (!executiveId || b.executiveId === executiveId)
+        && (!programTemplateId || b.programTemplateId === programTemplateId),
+      ))
     } catch {
       setFailed(true)
     }
-  }, [executiveId])
+  }, [executiveId, programTemplateId])
 
   useEffect(() => { void load() }, [load, generation])
 
@@ -113,7 +126,12 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
           >
             {latest.verdict}
           </Link>
-          <span style={{ color: muted, fontSize: 13, whiteSpace: 'nowrap' }}>
+          <span style={{ color: muted, fontSize: 13, whiteSpace: 'nowrap', textAlign: 'right' }}>
+            {!programTemplateId && programName(latest.programTemplateId) && (
+              <span style={{ display: 'block', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                {programName(latest.programTemplateId)}
+              </span>
+            )}
             {new Date(latest.createdAt).toLocaleDateString()}
           </span>
         </div>
@@ -154,6 +172,11 @@ export function BriefingsPanel({ executiveId }: { executiveId?: string } = {}) {
                 }}
               >
                 <span style={{ color: ink, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {!programTemplateId && programName(b.programTemplateId) && (
+                    <span style={{ color: muted, fontWeight: 600, marginRight: 6 }}>
+                      {programName(b.programTemplateId)} ·
+                    </span>
+                  )}
                   {b.verdict}
                 </span>
                 <span style={{ whiteSpace: 'nowrap' }}>{new Date(b.createdAt).toLocaleDateString()}</span>

@@ -8,7 +8,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
-import { getBriefings, pickLatestPerProgram } from '@/lib/briefings/briefings'
+import { getBriefings, pickLatestPerProgram, attachProgramTemplateId } from '@/lib/briefings/briefings'
+import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contract'
 import { log } from '@/lib/logger'
 import { newModelOff } from '@/lib/api/response'
 import { getAnchorFounderId } from '@/lib/team/founder-permissions'
@@ -30,7 +31,14 @@ export async function GET(): Promise<NextResponse> {
     const anchorId = await getAnchorFounderId(auth.user.id, supabase)
     if (!anchorId) return NextResponse.json({ error: 'No workspace found' }, { status: 400 })
 
-    const briefings = await getBriefings(supabase, anchorId)
+    const [rawBriefings, contract] = await Promise.all([
+      getBriefings(supabase, anchorId),
+      getCurrentContract(supabase, anchorId),
+    ])
+    // Same join /api/actions already does for `pending` via attachOwners — a briefing's own
+    // programId is a database row id, not the Registry code a founder-facing UI groups/links by.
+    const programs = contract ? await getProgramsForContract(supabase, contract.id) : []
+    const briefings = attachProgramTemplateId(rawBriefings, programs)
 
     return NextResponse.json({ briefings, latest: pickLatestPerProgram(briefings) })
   } catch (err) {

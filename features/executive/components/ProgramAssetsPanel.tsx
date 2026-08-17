@@ -21,13 +21,16 @@ import { ArtifactCard, type ArtifactCardData } from './ArtifactCard'
 import type { Rect } from '../lib/panel-origin'
 
 export function ProgramAssetsPanel({
-  executiveId, onOpenAsset,
+  executiveId, onOpenAsset, programTemplateId,
 }: {
   executiveId: string
   /** CANVAS_SPEC §5 — when supplied, clicking a document opens the node workspace panel in
    *  place instead of navigating away. Passed straight through to ArtifactCard, including the
    *  clicked card's own rect (PRD 2 Stage 3 — the panel grows out of it). */
   onOpenAsset?: (assetId: string, originRect: Rect) => void
+  /** Narrow to one Program (e.g. 'P001') on a multi-Program executive's page. Additive — omitted
+   *  means "every Program," the same behavior this panel always had. */
+  programTemplateId?: string
 }) {
   const [assets, setAssets] = useState<ArtifactCardData[] | null>(null)
 
@@ -39,13 +42,15 @@ export function ProgramAssetsPanel({
         if (!live) return
         if (!res.ok) { setAssets([]); return }
         const all: ArtifactCardData[] = (await res.json()).assets ?? []
-        setAssets(all.filter(a => a.executiveId === executiveId))
+        setAssets(all.filter(a =>
+          a.executiveId === executiveId && (!programTemplateId || a.programTemplateId === programTemplateId),
+        ))
       } catch {
         if (live) setAssets([])
       }
     })()
     return () => { live = false }
-  }, [executiveId])
+  }, [executiveId, programTemplateId])
 
   if (!assets || assets.length === 0) return null
 

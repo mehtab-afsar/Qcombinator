@@ -29,24 +29,20 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import { Check, Loader2, AlertCircle, Minus, Circle, ChevronDown, FileText, MessageSquare, Send } from 'lucide-react'
-import { bdr, ink, muted, blue, green, amber, red, alpha } from '@/lib/constants/colors'
-import { ease } from '@/features/shared/tokens'
-import { FONT_SERIF } from '@/features/onboarding/theme'
+import { ChevronDown } from 'lucide-react'
+import { bdr, muted, amber, red, alpha } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
 import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
 import { useStreamedRhythmStep } from '../hooks/useStreamedRhythmStep'
 import { POLL_MS, isCycleLive } from '../lib/useCycleLive'
 import { createClient } from '@/lib/supabase/client'
+import { Empty, StatusLine, StepRow, StreamingRow, HistoryRow } from './RhythmStepList'
 
-type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
-type StepKind = 'asset' | 'briefing' | 'action'
+export type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
+export type StepKind = 'asset' | 'briefing' | 'action'
 
-interface ProgressStep {
+export interface ProgressStep {
   key: string
   label: string
   state: StepState
@@ -63,7 +59,7 @@ interface ProgressStep {
   preview: string | null
 }
 
-interface RunProgress {
+export interface RunProgress {
   runId: string
   cycleKey: string
   status: 'running' | 'completed' | 'failed'
@@ -78,7 +74,7 @@ interface RunProgress {
 }
 
 /** F09 artifact organization — one past cycle, thin (GET /api/rhythm/run's `history` array). */
-interface RunSummary {
+export interface RunSummary {
   id: string
   cycleKey: string
   status: 'running' | 'completed' | 'failed'
@@ -88,16 +84,36 @@ interface RunSummary {
   total: number
 }
 
-/** Matches STEP_LIMIT_EXCEEDED in lib/rhythm/limits.ts — the circuit breaker's reason code. */
-const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
+/** Same recompute scopeStepsToExecutive does (steps filtered, done/total/currentLabel derived
+ *  from the filtered set), for a second dimension (Program instead of Executive) — not folded
+ *  into that shared helper since only this panel currently needs to narrow by both. */
+function narrowToProgram<T extends { steps: ProgressStep[] }>(
+  scoped: T,
+  programTemplateId: string,
+): T {
+  const steps = scoped.steps.filter(s => s.templateId === programTemplateId)
+  return {
+    ...scoped,
+    steps,
+    done: steps.filter(s => s.state === 'done' || s.state === 'skipped').length,
+    total: steps.length,
+    currentLabel: steps.find(s => s.state === 'active')?.label ?? null,
+  }
+}
 
 /**
  * @param executiveId scope the step list (and its done/total counts) to one executive's steps —
  *   the detail page. "Run now" still starts the WHOLE weekly cycle regardless (there is no way to
  *   run one Program in isolation — CLAUDE.md §1: no runsWhen/event-skipping in v1); only the
  *   display narrows, not the actual trigger.
+ * @param programTemplateId narrow further to one Program (e.g. 'P001') on a multi-Program
+ *   executive's page. Additive — omitted means "every Program this executive owns," the same
+ *   behavior this panel always had. ProgressStep.templateId already carries this, so no new data
+ *   is needed, only a filter.
  */
-export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
+export function RhythmPanel({
+  executiveId, programTemplateId,
+}: { executiveId?: string; programTemplateId?: string } = {}) {
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const [history, setHistory] = useState<RunSummary[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -180,10 +196,17 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
     ? { ...progress, ...scopeStepsToExecutive(progress.steps, executiveId) }
     : progress
 
+  // Narrow further to one Program on a multi-Program executive's page. A local second pass
+  // rather than generalizing scopeStepsToExecutive's predicate — that helper is shared with
+  // BirdsEyeStats and only this panel currently needs to narrow by two dimensions.
+  const programScoped = scoped && programTemplateId
+    ? narrowToProgram(scoped, programTemplateId)
+    : scoped
+
   // Documents (Assets + the Briefing), separate from Actions — Actions already have their own
   // surface below (ActionsPanel). Without this, "This week's cycle" reads as "12 documents" when
   // it's really 5 documents, 1 briefing, and 6 actions — see documentProgress's own docstring.
-  const docs = scoped ? documentProgress(scoped.steps) : null
+  const docs = programScoped ? documentProgress(programScoped.steps) : null
 
   // FU-010: a run whose self-chain died server-side still has status:'running' — this button
   // used to hide (progress.status !== 'running') for exactly the case a founder most needs it,
@@ -211,8 +234,8 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
         <StreamingRow text={liveText} />
       ) : (
         <>
-          {!scoped && <Empty />}
-          {scoped && docs && <StatusLine progress={scoped} docs={docs} />}
+          {!programScoped && <Empty />}
+          {programScoped && docs && <StatusLine progress={programScoped} docs={docs} />}
           {docs && (
             <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
               {docs.steps.map(step => (
@@ -258,197 +281,3 @@ export function RhythmPanel({ executiveId }: { executiveId?: string } = {}) {
   )
 }
 
-function Empty() {
-  return (
-    <p style={{ color: muted, fontSize: 14, marginTop: 8, lineHeight: 1.6, maxWidth: 560 }}>
-      Each cycle your team refreshes your Assets and publishes a briefing. It runs weekly on its
-      own — or start one now. It takes a few minutes; you can leave this page.
-    </p>
-  )
-}
-
-/**
- * The one-line headline: what's happening, or what happened.
- *
- * Stalled/failed/circuit-breaker read from the WHOLE run (`progress`) — those are legitimately
- * whole-cycle concerns (a stalled run needs "Resume" regardless of which stage it stalled in).
- * The ordinary running/finished framing reads from `docs` (Assets + Briefing only) instead — see
- * documentProgress's docstring for why: a founder's "documents" is 5-6 things, not 12, and
- * Actions already narrate themselves via ActionsPanel below.
- */
-function StatusLine({ progress, docs }: { progress: RunProgress; docs: ReturnType<typeof documentProgress> }) {
-  const { status, stalled, failureReason, done, total } = progress
-
-  if (failureReason === STEP_LIMIT_EXCEEDED) {
-    // A tripped run's steps are left exactly as they were, so without this it would read as an
-    // unexplained failure. Say what actually happened.
-    return (
-      <Line color={red}>
-        Stopped by the safety limit after {done} of {total} steps — this cycle was taking far more
-        work than it should, so it was halted rather than left running. Anything finished is
-        saved. This one needs a look before it runs again.
-      </Line>
-    )
-  }
-  if (stalled) {
-    return (
-      <Line color={amber}>
-        Stopped partway ({done} of {total} done). Nothing was lost — starting a new cycle picks
-        up from here.
-      </Line>
-    )
-  }
-  if (status === 'failed') {
-    return (
-      <Line color={red}>
-        Stopped early — {done} of {total} finished. What did complete is saved; running again
-        retries the rest.
-      </Line>
-    )
-  }
-  if (status === 'running' && !docs.finished) {
-    return (
-      <Line color={blue}>
-        {docs.currentLabel ? `Working on ${docs.currentLabel}…` : 'Working…'} ({docs.done} of {docs.total})
-      </Line>
-    )
-  }
-  // Reads as "finished" the moment every document + the briefing are done — even if the run is
-  // still `running` because Actions are still being decided behind the scenes (that's their own
-  // story, told by ActionsPanel, not this line).
-  return (
-    <Line color={green}>
-      Finished — {docs.done} of {docs.total} documents ready. Your briefing is below.
-    </Line>
-  )
-}
-
-// UX_SPEC §6: serif is for the executive's own voice, never chrome or data — this line is
-// the team addressing the founder directly ("Working on X…", "Finished — your briefing is
-// below"), so it qualifies. Priorities/metrics lists elsewhere stay as-is; those are facts.
-function Line({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <p style={{ color, fontFamily: FONT_SERIF, fontSize: 14, marginTop: 10, lineHeight: 1.6, maxWidth: 560 }}>
-      {children}
-    </p>
-  )
-}
-
-/** @param liveText Realtime-sourced text for this exact step, only ever passed for the
- *   currently-active one (see the Part B subscription above) — rendered as markdown (raw
- *   `#`/`**` otherwise show through mid-stream) in the same slot `step.preview` occupies once
- *   settled. `step.preview` itself is already server-stripped to plain text by
- *   lib/rhythm/preview.ts, so it stays a plain paragraph, unchanged. */
-function StepRow({ step, liveText }: { step: ProgressStep; liveText?: string }) {
-  const { icon, color, note } = stepLook(step.state)
-  const KindIcon = kindIcon(step.kind)
-  const isActive = step.state === 'active'
-  return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14,
-        // A little more present than a 15px spinner alone — this is the "your team is working
-        // on this right now" row, the one place a founder watches a cycle happen (no separate
-        // first-cycle ceremony screen anymore).
-        background: isActive ? alpha(blue, 0.05) : 'transparent',
-        borderRadius: 8, padding: isActive ? '6px 8px' : 0, margin: isActive ? '-6px -8px' : 0,
-      }}
-    >
-      <span style={{ display: 'flex', width: 16, marginTop: 2, flexShrink: 0 }}>{icon}</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <KindIcon size={12} color={muted} style={{ flexShrink: 0 }} />
-          <span style={{ color: step.state === 'pending' ? muted : ink, fontWeight: isActive ? 600 : 400, flex: 1 }}>{step.label}</span>
-          {note && <span style={{ color, fontSize: 12, flexShrink: 0 }}>{note}</span>}
-        </div>
-        {liveText ? (
-          <div style={{
-            color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
-            maxHeight: 90, overflowY: 'auto',
-          }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{liveText}</ReactMarkdown>
-          </div>
-        ) : step.preview && (
-          // Fades in once, the moment this step's preview first appears.
-          <motion.p
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease }}
-            style={{
-              color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
-              overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
-              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-            }}
-          >
-            {step.preview}
-          </motion.p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** PRD 2 Stage 2 Part A — the live-generation row. Same visual language as StepRow's 'active'
- *  tint (a calmer, ongoing look, not ActivationScreen's first-time ceremony) rather than a new
- *  loading pattern. */
-function StreamingRow({ text }: { text: string }) {
-  return (
-    <div
-      style={{
-        display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 14, marginTop: 14,
-        background: alpha(blue, 0.05), borderRadius: 8, padding: '8px 10px',
-      }}
-    >
-      <span style={{ display: 'flex', width: 16, marginTop: 2, flexShrink: 0 }}>
-        <Loader2 size={15} color={blue} style={{ animation: 'spin 1s linear infinite' }} />
-      </span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ color: ink, fontWeight: 600 }}>Writing…</span>
-        <p
-          style={{
-            color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
-            whiteSpace: 'pre-wrap', maxHeight: 160, overflowY: 'auto',
-          }}
-        >
-          {text || 'Starting…'}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function kindIcon(kind: StepKind) {
-  if (kind === 'briefing') return MessageSquare
-  if (kind === 'action') return Send
-  return FileText
-}
-
-function HistoryRow({ run }: { run: RunSummary }) {
-  const color = run.status === 'completed' ? green : run.status === 'failed' ? red : amber
-  const label = run.status === 'completed' ? 'Finished' : run.status === 'failed' ? 'Stopped early' : 'Running'
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-      <span style={{ color: ink, flex: 1 }}>{new Date(run.startedAt).toLocaleDateString()}</span>
-      <span style={{ color, fontSize: 12 }}>{label} · {run.done} of {run.total}</span>
-    </div>
-  )
-}
-
-function stepLook(state: StepState): { icon: React.ReactNode; color: string; note: string | null } {
-  switch (state) {
-    case 'done':
-      return { icon: <Check size={15} color={green} />, color: green, note: null }
-    case 'active':
-      return {
-        icon: <Loader2 size={15} color={blue} style={{ animation: 'spin 1s linear infinite' }} />,
-        color: blue, note: 'working',
-      }
-    case 'failed':
-      return { icon: <AlertCircle size={15} color={red} />, color: red, note: 'failed' }
-    case 'skipped':
-      // ADR-028 — no new input, so nothing needed rewriting. Say that, don't imply work.
-      return { icon: <Minus size={15} color={muted} />, color: muted, note: 'no change needed' }
-    default:
-      return { icon: <Circle size={9} color={bdr} />, color: muted, note: null }
-  }
-}
