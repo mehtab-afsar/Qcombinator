@@ -21,7 +21,7 @@ import { ArtifactCard, type ArtifactCardData } from './ArtifactCard'
 import type { Rect } from '../lib/panel-origin'
 
 export function ProgramAssetsPanel({
-  executiveId, onOpenAsset, programTemplateId,
+  executiveId, onOpenAsset, programTemplateId, activeAssetId,
 }: {
   executiveId: string
   /** CANVAS_SPEC §5 — when supplied, clicking a document opens the node workspace panel in
@@ -31,6 +31,9 @@ export function ProgramAssetsPanel({
   /** Narrow to one Program (e.g. 'P001') on a multi-Program executive's page. Additive — omitted
    *  means "every Program," the same behavior this panel always had. */
   programTemplateId?: string
+  /** From useAutoOpenLiveAsset — whichever asset is actively generating right now, if any.
+   *  Cross-referenced against each card's own id to show a "Writing now…" badge. */
+  activeAssetId?: string | null
 }) {
   const [assets, setAssets] = useState<ArtifactCardData[] | null>(null)
 
@@ -57,7 +60,9 @@ export function ProgramAssetsPanel({
   return (
     <SectionCard title="Documents" style={{ background: alpha(blue, 0.04) }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-        {assets.map(a => <ArtifactCard key={a.id} data={a} onOpen={onOpenAsset} />)}
+        {assets.map(a => (
+          <ArtifactCard key={a.id} data={{ ...a, generating: a.id === activeAssetId }} onOpen={onOpenAsset} />
+        ))}
       </div>
     </SectionCard>
   )

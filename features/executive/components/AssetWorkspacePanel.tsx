@@ -15,7 +15,7 @@
  * wherever the box ends up docked, so it doesn't need to know which entrance path was taken.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Loader2 } from 'lucide-react'
 import { bg, bdr, ink, muted, white } from '@/lib/constants/colors'
@@ -25,11 +25,14 @@ import { panelOriginAnimation, type Rect } from '../lib/panel-origin'
 import { AssetWorkspaceBody } from './AssetWorkspaceBody'
 
 export function AssetWorkspacePanel({
-  assetId, originRect, onClose,
+  assetId, originRect, onClose, liveText,
 }: {
   assetId: string | null
   originRect: Rect | null
   onClose: () => void
+  /** Set only while THIS asset is actively generating — see useRhythmProgress's own docstring.
+   *  Undefined for a normal open; the panel just shows the last saved version as always. */
+  liveText?: string
 }) {
   const reducedMotion = useMotionPrefs()
   // Measured once per open, not on every resize — the panel's entrance only needs a value at the
@@ -92,7 +95,7 @@ export function AssetWorkspacePanel({
                 transition={{ delay: 0.12, duration: 0.16 }}
                 style={{ flex: 1, overflowY: 'auto', padding: '20px 28px 40px', background: bg }}
               >
-                <PanelBody assetId={assetId} />
+                <PanelBody assetId={assetId} liveText={liveText} />
               </motion.div>
             </motion.div>
           ) : (
@@ -111,7 +114,7 @@ export function AssetWorkspacePanel({
             >
               <PanelHeader assetId={assetId} onClose={onClose} />
               <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px 40px', background: bg }}>
-                <PanelBody assetId={assetId} />
+                <PanelBody assetId={assetId} liveText={liveText} />
               </div>
             </motion.div>
           )}
@@ -145,8 +148,18 @@ function PanelHeader({ assetId, onClose }: { assetId: string; onClose: () => voi
 /** Its own component so useAssetWorkspace only mounts (and fetches) once assetId is real —
  *  AnimatePresence keeps the outer panel briefly mounted during exit, but there's nothing left
  *  to load by then. */
-function PanelBody({ assetId }: { assetId: string }) {
+function PanelBody({ assetId, liveText }: { assetId: string; liveText?: string }) {
   const workspace = useAssetWorkspace(assetId)
+
+  // The moment generation settles (liveText goes from present to absent), pull the real saved
+  // version — every other path into a fresh version already calls `reload` internally; this is
+  // the one external trigger for it. Skipped on first mount (liveText starts wherever it starts;
+  // the initial `load()` inside the hook already covers that case).
+  const wasLive = useRef(Boolean(liveText))
+  useEffect(() => {
+    if (wasLive.current && !liveText) void workspace.reload()
+    wasLive.current = Boolean(liveText)
+  }, [liveText, workspace])
 
   if (workspace.loading) {
     return (
@@ -162,7 +175,7 @@ function PanelBody({ assetId }: { assetId: string }) {
         {workspace.def?.name ?? 'Asset'}
       </h2>
       <div style={{ marginTop: 12 }}>
-        <AssetWorkspaceBody workspace={workspace} />
+        <AssetWorkspaceBody workspace={workspace} liveText={liveText} />
       </div>
     </div>
   )

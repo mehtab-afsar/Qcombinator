@@ -121,5 +121,9 @@ export function useAssetWorkspace(assetId: string) {
   return {
     def, history, draft, setDraft, current, loading, saving, error, note,
     instruction, setInstruction, directing, save, restore, direct,
+    // Exposed for AssetWorkspacePanel: the moment a document that was streaming live settles,
+    // it needs to pull the real saved version — every other mutation here already calls this
+    // internally, this is just the one external trigger that isn't a mutation.
+    reload: load,
   }
 }

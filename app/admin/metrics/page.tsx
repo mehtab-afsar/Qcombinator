@@ -80,6 +80,23 @@ interface ActionMetrics {
   internalCount: number;
 }
 
+interface AiUsageBreakdown {
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
+interface AiUsageMetrics {
+  windowDays: number;
+  totalCalls: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCostUsd: number;
+  byProgram: Record<string, AiUsageBreakdown>;
+  byAction: Record<string, AiUsageBreakdown>;
+}
+
 interface AdminMetrics {
   rag: RagMetrics;
   tools: ToolMetrics;
@@ -89,6 +106,7 @@ interface AdminMetrics {
   beta: BetaMetrics;
   rhythm: RhythmMetrics;
   actions: ActionMetrics;
+  aiUsage: AiUsageMetrics;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -170,7 +188,8 @@ export default function AdminMetricsPage() {
 
   if (!data) return null;
 
-  const { rag, tools, scores, cache, activity, beta, rhythm, actions } = data;
+  const { rag, tools, scores, cache, activity, beta, rhythm, actions, aiUsage } = data;
+  const aiUsageByProgramDesc = Object.entries(aiUsage.byProgram).sort((a, b) => b[1].costUsd - a[1].costUsd);
   const ragMethodTotal = Object.values(rag.byMethod).reduce((a, b) => a + b, 0);
   const toolsByTotalDesc = Object.entries(tools.byTool).sort((a, b) => b[1].total - a[1].total);
   const topAgent = Object.entries(activity.byAgent).sort((a, b) => b[1] - a[1])[0];
@@ -328,6 +347,41 @@ export default function AdminMetricsPage() {
                 <BarSegment key={provider} label={provider} count={count} total={actions.total} color={amber} />
               ))}
             </div>
+          </Card>
+
+          {/* Card 3d — AI Usage/Cost Ledger: what the executive team's own thinking costs, by Program */}
+          <Card title={`AI Usage & Cost (${aiUsage.windowDays}d)`}>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 32, fontWeight: 700, color: ink }}>
+                ${aiUsage.totalCostUsd.toFixed(4)}
+              </span>
+              <span style={{ color: muted, fontSize: 13 }}>· {aiUsage.totalCalls} calls</span>
+            </div>
+            <StatRow label="Input tokens" value={aiUsage.totalInputTokens.toLocaleString()} />
+            <StatRow label="Output tokens" value={aiUsage.totalOutputTokens.toLocaleString()} />
+            {aiUsageByProgramDesc.length > 0 && (
+              <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      {['Program', 'Calls', 'Tokens', 'Cost'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', color: muted, padding: '4px 6px', borderBottom: `1px solid ${bdr}`, fontWeight: 500 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiUsageByProgramDesc.map(([programId, d]) => (
+                      <tr key={programId}>
+                        <td style={{ padding: '4px 6px', color: ink }}>{programId === 'unattributed' ? '(uncategorized)' : programId}</td>
+                        <td style={{ padding: '4px 6px', color: ink }}>{d.calls}</td>
+                        <td style={{ padding: '4px 6px', color: muted }}>{(d.inputTokens + d.outputTokens).toLocaleString()}</td>
+                        <td style={{ padding: '4px 6px', color: ink, fontWeight: 600 }}>${d.costUsd.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Card>
 
           {/* Card 4 — Q-Score Velocity */}

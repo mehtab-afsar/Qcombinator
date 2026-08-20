@@ -47,6 +47,8 @@ import { BeatHeading } from '@/features/executive/components/BeatHeading'
 import { ProgramTabBar } from '@/features/executive/components/ProgramTabBar'
 import { ProgramOverviewGrid } from '@/features/executive/components/ProgramOverviewGrid'
 import { useProgramTabs } from '@/features/executive/hooks/useProgramTabs'
+import { useRhythmProgress } from '@/features/executive/hooks/useRhythmProgress'
+import { useAutoOpenLiveAsset } from '@/features/executive/hooks/useAutoOpenLiveAsset'
 import type { Rect } from '@/features/executive/lib/panel-origin'
 import type { Contract, ExecutiveSummary, ProgramInstance } from '@/features/executive/types/executive.types'
 
@@ -99,22 +101,32 @@ export default function ExecutiveDetailPage() {
   const { activeProgramId, selectProgram, activeProgram, showOverviewGrid, panelProgramTemplateId } =
     useProgramTabs(programs, searchParams)
 
+  // Called ONCE here — shared with RhythmPanel below AND with the auto-opening document panel,
+  // rather than each fetching/subscribing independently. See useRhythmProgress's own docstring.
+  const rhythm = useRhythmProgress()
+
   // CANVAS_SPEC §5 — the node workspace panel's open asset, mirrored into ?asset= so it's
   // linkable/refresh-safe without a full page navigation ("preserve the sense of place").
   const openAssetId = searchParams.get('asset')
   // PRD 2 Stage 3 — the clicked card's own rect, so the panel can visually grow out of it
   // (features/executive/lib/panel-origin.ts) instead of always sliding from the screen edge.
   // Kept OUTSIDE the URL on purpose (a DOMRect isn't a sensible query param) — null on a direct
-  // load of a ?asset= link, which the panel already falls back to a plain slide-in for.
+  // load of a ?asset= link, or on the auto-open below, both of which the panel already falls
+  // back to a plain slide-in for.
   const [openAssetOrigin, setOpenAssetOrigin] = useState<Rect | null>(null)
-  const openAsset = useCallback((assetId: string, originRect: Rect) => {
+  const openAsset = useCallback((assetId: string, originRect: Rect | null) => {
     setOpenAssetOrigin(originRect)
     router.push(`?asset=${encodeURIComponent(assetId)}`, { scroll: false })
   }, [router])
+  // Watch a document write itself, live — see useAutoOpenLiveAsset's own docstring.
+  const { openAssetLiveText, activeAssetId, recordDismissal } = useAutoOpenLiveAsset({
+    executiveId, rhythm, openAssetId, openAsset,
+  })
   const closeAsset = useCallback(() => {
+    recordDismissal()
     setOpenAssetOrigin(null)
     router.push(window.location.pathname, { scroll: false })
-  }, [router])
+  }, [router, recordDismissal])
 
   const load = useCallback(async () => {
     setState('loading')
@@ -264,13 +276,14 @@ export default function ExecutiveDetailPage() {
                         Anchored so the chat rail's "initiated" reply can point back up here. */}
                     <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
                       <BirdsEyeStats executiveId={executiveId} />
-                      <RhythmPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
+                      <RhythmPanel progressState={rhythm} executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
                     </div>
                     {/* Only P005's outreach needs this — see ContactsPrompt's own docstring. */}
                     {panelProgramTemplateId === 'P005' && <ContactsPrompt />}
                     {/* 3. Documents (§4.3) */}
                     <ProgramAssetsPanel
                       executiveId={executiveId} onOpenAsset={openAsset} programTemplateId={panelProgramTemplateId}
+                      activeAssetId={activeAssetId}
                     />
                     {/* 4. Actions (§4.4) */}
                     <ActionsPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
@@ -292,7 +305,9 @@ export default function ExecutiveDetailPage() {
         )}
       </PageContainer>
 
-      <AssetWorkspacePanel assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} />
+      <AssetWorkspacePanel
+        assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} liveText={openAssetLiveText}
+      />
     </div>
   )
 }

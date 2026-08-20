@@ -9,26 +9,65 @@
  */
 
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+import { ChevronDown, Download, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, red, white, alpha } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
-import { FONT_SERIF } from '@/features/onboarding/theme'
-import { type useAssetWorkspace, type AssetVersion } from '../hooks/useAssetWorkspace'
+import { type useAssetWorkspace, type AssetVersion, type AssetDefinition } from '../hooks/useAssetWorkspace'
+import { ReportMarkdown } from './ReportMarkdown'
 
 type Disclosure = 'versions' | 'edit' | 'direct' | null
 
-export function AssetWorkspaceBody({ workspace }: { workspace: ReturnType<typeof useAssetWorkspace> }) {
+/** A safe filename from the asset's own name — "ICP Profiles" -> "ICP-Profiles". */
+function fileNameFor(def: AssetDefinition | null | undefined, version: number): string {
+  const base = (def?.name ?? 'document').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const ext = def?.outputSchema === 'json' ? 'json' : 'md'
+  return `${base}-v${version}.${ext}`
+}
+
+/** Client-side only — the content is already loaded in the browser, no round-trip needed. */
+function downloadAsset(def: AssetDefinition | null | undefined, current: AssetVersion): void {
+  const text = typeof current.content === 'string' ? current.content : JSON.stringify(current.content, null, 2)
+  const mime = def?.outputSchema === 'json' ? 'application/json' : 'text/markdown'
+  const url = URL.createObjectURL(new Blob([text], { type: mime }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileNameFor(def, current.version)
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export function AssetWorkspaceBody({
+  workspace, liveText,
+}: {
+  workspace: ReturnType<typeof useAssetWorkspace>
+  /** Set only while this Asset is actively generating — see AssetWorkspacePanel's own prop
+   *  comment. Renders in place of the settled Read view; Versions/Edit/Direct-the-AI all hide
+   *  while live, since they'd otherwise operate on the version being replaced. */
+  liveText?: string
+}) {
   const { def, history, current, error } = workspace
   const [open, setOpen] = useState<Disclosure>(null)
+  const isLive = liveText !== undefined
 
   return (
     <div>
-      {current && (
-        <p style={{ color: muted, fontSize: 13, margin: 0 }}>
-          Version {current.version}{current.updateReason && ` · ${current.updateReason}`}
-        </p>
+      {current && !isLive && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <p style={{ color: muted, fontSize: 13, margin: 0 }}>
+            Version {current.version}{current.updateReason && ` · ${current.updateReason}`}
+          </p>
+          <button
+            onClick={() => downloadAsset(def, current)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, background: 'none',
+              border: `1px solid ${bdr}`, borderRadius: 6, padding: '5px 10px',
+              color: muted, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+            }}
+          >
+            <Download size={13} />
+            Download
+          </button>
+        </div>
       )}
 
       {error && (
@@ -40,13 +79,22 @@ export function AssetWorkspaceBody({ workspace }: { workspace: ReturnType<typeof
 
       {/* Read — the default and the front (D3). */}
       <div style={{ marginTop: 16 }}>
-        {current ? (
-          def?.outputSchema === 'markdown' ? (
-            <div style={{ fontFamily: FONT_SERIF, color: ink, fontSize: 15, lineHeight: 1.7 }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {typeof current.content === 'string' ? current.content : ''}
-              </ReactMarkdown>
+        {isLive ? (
+          <div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+              padding: '8px 12px', background: alpha(blue, 0.06), borderRadius: 8,
+            }}>
+              <Loader2 size={14} color={blue} style={{ animation: 'spin 1s linear infinite' }} />
+              <span style={{ color: blue, fontSize: 13, fontWeight: 600 }}>Writing this now…</span>
             </div>
+            {liveText ? <ReportMarkdown content={liveText} /> : (
+              <p style={{ color: muted, fontSize: 14 }}>Starting…</p>
+            )}
+          </div>
+        ) : current ? (
+          def?.outputSchema === 'markdown' ? (
+            <ReportMarkdown content={typeof current.content === 'string' ? current.content : ''} />
           ) : (
             <pre style={{
               background: surf, border: `1px solid ${bdr}`, borderRadius: 8, padding: 14,
@@ -61,16 +109,22 @@ export function AssetWorkspaceBody({ workspace }: { workspace: ReturnType<typeof
         )}
       </div>
 
-      {/* Versions/Edit/Direct-the-AI — quiet and available underneath, one at a time (§5). */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 24, paddingTop: 14, borderTop: `1px solid ${bdr}` }}>
-        <DisclosureTab label="Versions" active={open === 'versions'} onClick={() => setOpen(o => o === 'versions' ? null : 'versions')} />
-        <DisclosureTab label="Edit" active={open === 'edit'} onClick={() => setOpen(o => o === 'edit' ? null : 'edit')} />
-        <DisclosureTab label="Direct the AI" active={open === 'direct'} onClick={() => setOpen(o => o === 'direct' ? null : 'direct')} />
-      </div>
+      {/* Versions/Edit/Direct-the-AI — quiet and available underneath, one at a time (§5).
+          Hidden while live: they'd otherwise let a founder edit or restore a version that's
+          about to be replaced by the one currently being written. */}
+      {!isLive && (
+        <>
+          <div style={{ display: 'flex', gap: 6, marginTop: 24, paddingTop: 14, borderTop: `1px solid ${bdr}` }}>
+            <DisclosureTab label="Versions" active={open === 'versions'} onClick={() => setOpen(o => o === 'versions' ? null : 'versions')} />
+            <DisclosureTab label="Edit" active={open === 'edit'} onClick={() => setOpen(o => o === 'edit' ? null : 'edit')} />
+            <DisclosureTab label="Direct the AI" active={open === 'direct'} onClick={() => setOpen(o => o === 'direct' ? null : 'direct')} />
+          </div>
 
-      {open === 'versions' && <VersionsSection history={history} onRestore={v => void workspace.restore(v)} busy={workspace.saving} />}
-      {open === 'edit' && <EditSection workspace={workspace} />}
-      {open === 'direct' && <DirectSection workspace={workspace} />}
+          {open === 'versions' && <VersionsSection history={history} onRestore={v => void workspace.restore(v)} busy={workspace.saving} />}
+          {open === 'edit' && <EditSection workspace={workspace} />}
+          {open === 'direct' && <DirectSection workspace={workspace} />}
+        </>
+      )}
     </div>
   )
 }

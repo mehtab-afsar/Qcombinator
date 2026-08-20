@@ -12,7 +12,7 @@
  */
 
 import Link from 'next/link'
-import { FileText } from 'lucide-react'
+import { FileText, Loader2 } from 'lucide-react'
 import { bg, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { Badge } from '@/features/shared/components/Badge'
 import { SHORT_LABEL, EXECUTIVE_BADGE_VARIANT } from '../lib/executiveLabels'
@@ -35,6 +35,10 @@ export interface ArtifactCardData {
   asset: ArtifactCardVersion | null
   /** Total versions this Asset has, including the current one — 0 if never generated. */
   versionCount?: number
+  /** Set by whoever builds the card list, by cross-referencing the live run's active step
+   *  against this card's own id — see useAutoOpenLiveAsset for the same correlation done for
+   *  the reading panel. Not fetched here; ArtifactCard stays a pure presentational component. */
+  generating?: boolean
 }
 
 /**
@@ -54,7 +58,7 @@ export function ArtifactCard({
   showOwner?: boolean
   onOpen?: (assetId: string, originRect: Rect) => void
 }) {
-  const { id, name, executiveId, asset: version, versionCount } = data
+  const { id, name, executiveId, asset: version, versionCount, generating } = data
 
   const sharedStyle = {
     display: 'block', background: bg, border: `1px solid ${bdr}`, borderRadius: 10,
@@ -68,32 +72,37 @@ export function ArtifactCard({
         onClick={e => onOpen(id, e.currentTarget.getBoundingClientRect())}
         style={sharedStyle}
       >
-        <ArtifactCardBody name={name} executiveId={executiveId} version={version} versionCount={versionCount} showOwner={showOwner} />
+        <ArtifactCardBody name={name} executiveId={executiveId} version={version} versionCount={versionCount} showOwner={showOwner} generating={generating} />
       </button>
     )
   }
 
   return (
     <Link href={`/founder/assets/${id}`} style={sharedStyle}>
-      <ArtifactCardBody name={name} executiveId={executiveId} version={version} versionCount={versionCount} showOwner={showOwner} />
+      <ArtifactCardBody name={name} executiveId={executiveId} version={version} versionCount={versionCount} showOwner={showOwner} generating={generating} />
     </Link>
   )
 }
 
 function ArtifactCardBody({
-  name, executiveId, version, versionCount, showOwner,
+  name, executiveId, version, versionCount, showOwner, generating,
 }: {
   name: string
   executiveId: string | null
   version: ArtifactCardVersion | null
   versionCount?: number
   showOwner: boolean
+  generating?: boolean
 }) {
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <FileText size={15} color={version ? blue : muted} style={{ flexShrink: 0 }} />
+          {generating ? (
+            <Loader2 size={15} color={blue} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          ) : (
+            <FileText size={15} color={version ? blue : muted} style={{ flexShrink: 0 }} />
+          )}
           <span style={{
             color: ink, fontSize: 14, fontWeight: 600,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -108,8 +117,10 @@ function ArtifactCardBody({
         )}
       </div>
 
-      <p style={{ color: muted, fontSize: 12.5, marginTop: 6 }}>
-        {version
+      <p style={{ color: generating ? blue : muted, fontSize: 12.5, marginTop: 6, fontWeight: generating ? 600 : 400 }}>
+        {generating
+          ? 'Writing now…'
+          : version
           ? <>
               v{version.version} · {new Date(version.createdAt).toLocaleDateString()}
               {typeof versionCount === 'number' && versionCount > 1 && ` · ${versionCount} versions`}

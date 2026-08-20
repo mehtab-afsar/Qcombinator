@@ -24,19 +24,24 @@
  * any cycle this browser didn't itself trigger. Degrades gracefully to the ordinary poll if
  * Realtime is unavailable — always cosmetic, never load-bearing.
  *
- * Client boundary: fetches via /api/rhythm/run and never imports lib/registry|rhythm — the
+ * The poll/SSE/Realtime state itself is owned by `useRhythmProgress` (features/executive/hooks),
+ * called ONCE by the parent page rather than here — AssetWorkspacePanel needs the same live run
+ * data (to auto-open on, and show live text for, whichever document is currently generating),
+ * and two independent Realtime subscriptions for the same run would be wasteful and could drift.
+ * This component only renders it; see useRhythmProgress's own docstring for the fetch/subscribe
+ * side.
+ *
+ * Client boundary: server-provided progress state only, never imports lib/registry|rhythm — the
  * server hands over already-named steps (CLAUDE.md §2, the frontend renders state).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { bdr, muted, amber, red, alpha } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Button } from '@/features/shared/components/Button'
 import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
-import { useStreamedRhythmStep } from '../hooks/useStreamedRhythmStep'
-import { POLL_MS, isCycleLive } from '../lib/useCycleLive'
-import { createClient } from '@/lib/supabase/client'
+import type { RhythmProgressState } from '../hooks/useRhythmProgress'
 import { Empty, StatusLine, StepRow, StreamingRow, HistoryRow } from './RhythmStepList'
 
 export type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
@@ -54,6 +59,12 @@ export interface ProgressStep {
    *  drives the small kind icon next to the label so the list reads as more than one
    *  undifferentiated checklist (PRD §3). */
   kind: StepKind
+  /** The Registry asset id this step produces — asset steps only, else null. The server
+   *  (lib/rhythm/progress.ts) always sends this; this client type used to drop it, which is
+   *  exactly the gap that made "watch a document write itself live" impossible to build. */
+  assetId: string | null
+  /** The Registry action id this step attempts — action steps only, else null. */
+  actionId: string | null
   /** A short real snippet of what this step produced, once done/skipped — see
    *  lib/rhythm/preview.ts. null while in flight, or when no preview could be built. */
   preview: string | null
@@ -102,6 +113,8 @@ function narrowToProgram<T extends { steps: ProgressStep[] }>(
 }
 
 /**
+ * @param progressState from `useRhythmProgress()`, called ONCE by the parent page — see that
+ *   hook's own docstring for why this isn't fetched/subscribed here anymore.
  * @param executiveId scope the step list (and its done/total counts) to one executive's steps —
  *   the detail page. "Run now" still starts the WHOLE weekly cycle regardless (there is no way to
  *   run one Program in isolation — CLAUDE.md §1: no runsWhen/event-skipping in v1); only the
@@ -112,93 +125,13 @@ function narrowToProgram<T extends { steps: ProgressStep[] }>(
  *   is needed, only a filter.
  */
 export function RhythmPanel({
-  executiveId, programTemplateId,
-}: { executiveId?: string; programTemplateId?: string } = {}) {
-  const [progress, setProgress] = useState<RunProgress | null>(null)
-  const [history, setHistory] = useState<RunSummary[]>([])
+  progressState, executiveId, programTemplateId,
+}: { progressState: RhythmProgressState; executiveId?: string; programTemplateId?: string }) {
+  const {
+    progress, history, loaded, live, now, error, streaming,
+    sseLiveText: liveText, realtimeText, startCycle,
+  } = progressState
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  const { streaming, liveText, error, run: runStreamedStep } = useStreamedRhythmStep()
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/rhythm/run')
-      if (!res.ok) return // a 404 (flag off) or 500 — leave the last good state on screen
-      const data = await res.json()
-      setProgress(data.progress ?? null)
-      setHistory(data.history ?? [])
-    } catch {
-      /* transient — the next poll retries */
-    } finally {
-      setLoaded(true)
-    }
-  }, [])
-
-  useEffect(() => { void load() }, [load])
-
-  // Poll only while a cycle is actually in flight, and always clear on unmount — an interval
-  // that outlives its component is the timer-leak class already on the follow-up list.
-  const live = isCycleLive(progress)
-  useEffect(() => {
-    if (!live) return
-    timer.current = setInterval(() => { void load() }, POLL_MS)
-    return () => { if (timer.current) clearInterval(timer.current) }
-  }, [live, load])
-
-  // A ticking "running for Nm Ns" so a long cycle (several minutes, one step can alone take up
-  // to 180s) reads as "still working" rather than "stalled" between polls — the actual step
-  // counts above only move once every POLL_MS at best. Deliberately NOT an estimated time
-  // remaining: step duration varies too much by asset/action to guess honestly, and a wrong ETA
-  // erodes trust worse than no ETA.
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (!live) return
-    const tick = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(tick)
-  }, [live])
-
-  // PRD 2 Stage 2 Part B, moved here from the deleted ActivationScreen.tsx — live text for
-  // whatever's actively generating, regardless of who/what triggered this run. Same
-  // postgres_changes pattern already used by useMessageThread.ts/useQScore.tsx, reused for
-  // UPDATE instead of INSERT. Independent of useStreamedRhythmStep's own SSE (Part A) — that
-  // only covers the exact moment of a founder's own click; this covers everything else,
-  // including steps 2+ of that same click once the click's own SSE call has returned.
-  const runId = progress?.runId ?? null
-  const [realtimeText, setRealtimeText] = useState('')
-  useEffect(() => {
-    setRealtimeText('')
-    if (!live || !runId) return
-    let supabase: ReturnType<typeof createClient>
-    let channel: ReturnType<ReturnType<typeof createClient>['channel']>
-    try {
-      supabase = createClient()
-      channel = supabase
-        .channel(`operating_rhythm_runs:${runId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'operating_rhythm_runs', filter: `id=eq.${runId}` },
-          payload => {
-            const text = (payload.new as { streaming_text: string | null }).streaming_text
-            setRealtimeText(text ?? '')
-          },
-        )
-        .subscribe()
-    } catch {
-      /* Realtime unavailable — the settled reveal still lands from the ordinary poll */
-    }
-    return () => {
-      try { if (channel) supabase.removeChannel(channel) } catch { /* ignore */ }
-    }
-  }, [live, runId])
-
-  // PRD 2 Stage 2 Part A — streams step 1's asset content live via SSE (useStreamedRhythmStep);
-  // the hook owns its own busy/error state, including the 409/400 "already ran"/"no mandate"
-  // cases (real JSON, resolved before the stream opens — see the route's own comment).
-  async function startCycle() {
-    const result = await runStreamedStep()
-    if (result) await load()
-  }
 
   if (!loaded) return null // nothing to say yet; avoids a flash of the empty state
 

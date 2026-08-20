@@ -256,11 +256,17 @@ describe('B5 + FU-004 createOrResumeRun — retry and resume semantics', () => {
     expect(ops).toEqual(['select']) // nothing deleted, nothing (re)inserted — same row continues
   })
 
-  it('a RUNNING week with a STALE last_step_at is treated as abandoned and cleared (FU-004)', async () => {
-    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'running', last_step_at: STALE } })
+  it('a RUNNING week with a STALE last_step_at is RESUMED IN PLACE, not deleted', async () => {
+    // NOT delete-and-recreate: that used to silently duplicate real work (a second briefing
+    // generation, re-run Actions) because the dedup indexes are keyed to the row's own
+    // execution_id — a new row orphans everything already completed and looks undone. The
+    // self-trigger chain breaking doesn't mean the work already recorded in `stages` is
+    // untrustworthy; only the handoff between steps failed.
+    const { admin, ops } = fakeAdmin({ existing: { id: 'r1', status: 'running', last_step_at: STALE, step_count: 4 } })
     const run = await createOrResumeRun(admin, ARGS)
-    expect(ops).toEqual(['select', 'delete', 'insert']) // stale row removed, fresh run created
-    expect(run.id).toBe('run-new')
+    expect(ops).toEqual(['select']) // nothing deleted, nothing (re)inserted — same row continues
+    expect(run.id).toBe('r1')
+    expect(run.stepCount).toBe(4) // the work already done is still there, not reset to 0
   })
 
   it('a FAILED week is cleared and re-run', async () => {

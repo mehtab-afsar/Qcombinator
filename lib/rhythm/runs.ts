@@ -117,8 +117,8 @@ export class StepLimitOpenError extends Error {
  *   running, fresh step    → RESUMED — returned as-is; chunking made 'running' the NORMAL state
  *                             for a run spanning many short self-triggered steps, not just a
  *                             single invocation mid-flight
- *   running, stale step    → treated like failed: the self-trigger chain is presumed broken,
- *                             not merely slow (last_step_at unchanged for STALE_AFTER_MS)
+ *   running, stale step    → RESUMED IN PLACE, same as a fresh step — see the dedicated comment
+ *                             below for why this must NOT delete-and-recreate the row.
  *   failed                 → delete the stale row and start fresh. Its partial asset/briefing
  *                             execution_ids go NULL (on delete set null); the versions and
  *                             briefings themselves remain as history — nothing is destroyed
@@ -145,6 +145,19 @@ export async function createOrResumeRun(
     if (existingRun.status === 'completed') throw new CycleAlreadyRanError(args.cycleKey)
     if (existingRun.status === 'running' && !isStale(existingRun)) return existingRun
 
+    // A STALE-BUT-RUNNING row must be resumed IN PLACE, not deleted and recreated — this used
+    // to fall through to the same delete-and-retry path as a genuine failure, which silently
+    // duplicated real work: the briefing/action dedup indexes (executive_briefings_one_per_run,
+    // action_log_one_execution) are keyed to THIS row's execution_id, so a new row orphans
+    // already-completed briefing/action rows and runNextStep regenerates them — a second, real
+    // briefing generation (and re-run Actions) on top of the first, discovered when scoping
+    // auto-resume. The self-trigger chain being broken doesn't mean the WORK already recorded
+    // in `stages` is untrustworthy; only the handoff between steps failed. Returning the row
+    // unchanged here means the caller re-fires the chain against the same id, and `runNextStep`
+    // reads the same `stages` it already had — assets, briefing and actions already done are
+    // correctly recognized as done, nothing is redone.
+    if (existingRun.status === 'running' && isStale(existingRun)) return existingRun
+
     // The circuit breaker blew for this week. Falling through to the delete-and-retry path
     // below would hand the same runaway a brand new budget on every cron tick and every manual
     // click — a fuse that resets itself is not a fuse. Recovery is deliberate: fix the bug,
@@ -153,15 +166,15 @@ export async function createOrResumeRun(
       throw new StepLimitOpenError(args.cycleKey)
     }
 
-    // 'failed', or 'running'-but-stale: clear and start fresh. The status filter guards a
-    // race where the row changed between read and delete — it deletes only if the row is
-    // still in the state we just observed.
+    // Only a genuinely 'failed' run reaches here now — that legitimately warrants a clean
+    // slate. The status filter guards a race where the row changed between read and delete —
+    // it deletes only if the row is still in the state we just observed.
     const { error: deleteError } = await admin
       .from('operating_rhythm_runs')
       .delete()
       .eq('id', existingRun.id)
       .eq('status', existingRun.status)
-    if (deleteError) throw new RunError(`Failed to clear the stale run: ${deleteError.message}`)
+    if (deleteError) throw new RunError(`Failed to clear the failed run: ${deleteError.message}`)
   }
 
   const { data, error } = await admin

@@ -31,6 +31,7 @@ import { ActionsPanel } from './ActionsPanel'
 import { ConnectorsPanel } from './ConnectorsPanel'
 import { RhythmPanel } from './RhythmPanel'
 import { BriefingsPanel } from './BriefingsPanel'
+import { useRhythmProgress } from '../hooks/useRhythmProgress'
 import { space } from '@/features/shared/tokens'
 import type { Contract, ProgramInstance } from '../types/executive.types'
 
@@ -77,6 +78,11 @@ export function CommandView({
   // reflects the real answer instead of flipping after an effect and missing the animation.
   const [reveal] = useState(() => firstLandingOnThisContract(contract.id))
 
+  // This page has no AssetWorkspacePanel to share it with (unlike the executive detail page,
+  // which calls useRhythmProgress once and threads it to both RhythmPanel and the auto-opening
+  // document panel) — a standalone call here is correct, not a duplicate of anything.
+  const progressState = useRhythmProgress()
+
   // Owned here, not self-fetched like the other panels below: the compact-vs-full decision on
   // MandateCard needs the same data AssetsPanel renders, so this is the one fetch both read
   // from, rather than a duplicate request just to answer "do any assets exist yet."
@@ -121,7 +127,7 @@ export function CommandView({
         {/* Real and necessary, not part of that emotional arc: the documents themselves, the
             cycle control, and connected tools. */}
         <AssetsPanel assets={assets} loaded={assetsLoaded} />
-        <RhythmPanel />
+        <RhythmPanel progressState={progressState} />
         <ConnectorsPanel />
       </div>
     </div>
