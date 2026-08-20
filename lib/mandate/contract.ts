@@ -234,22 +234,38 @@ export async function createDraft(
     )
   }
 
-  // S002 for real (F08b). On failure, fall back to the deterministic builder: an
-  // LLM outage must not stop a founder setting their direction. The fallback is
-  // thinner — no document — and that is visible rather than pretended.
+  // S002 for real (F08b). Every MandateGenerationError case (timeout, a truncated response, an
+  // invalid JSON tail) is worth one retry before giving up — a fresh call routinely succeeds
+  // where the first hit a transient issue, and 7 Aug's own live verification run proved this
+  // isn't hypothetical (a real call truncated mid-document and fell straight to the fallback
+  // with nothing telling the founder). Only after a SECOND failure does this fall back to the
+  // deterministic builder: an LLM outage must not stop a founder setting their direction, but a
+  // thin fallback contract silently activating only P001 is a real product regression (a
+  // founder whose Strategy is clearly about product/ops/finance work gets a Growth-only
+  // mandate with no explanation) — so `document` staying null is the one signal the UI reads to
+  // show that, honestly, instead of just being thinner and unremarked-on.
   let draft: ContractDraft
   let document: string | null = null
+  const mandateInput = {
+    companyName: undefined,
+    strategy: [strategy.mission, ...strategy.priorities, ...strategy.goals].filter(Boolean).join('\n'),
+  }
   try {
-    const generated = await generateMandate({
-      companyName: undefined,
-      strategy: [strategy.mission, ...strategy.priorities, ...strategy.goals].filter(Boolean).join('\n'),
-    })
+    const generated = await generateMandate(mandateInput)
     draft = generated
     document = generated.document
-  } catch (err) {
-    if (!(err instanceof MandateGenerationError)) throw err
-    log.warn('S002 unavailable — falling back to a deterministic draft', { founderId })
-    draft = buildDraft(strategy)
+  } catch (first) {
+    if (!(first instanceof MandateGenerationError)) throw first
+    log.warn('S002 failed, retrying once', { founderId, err: first.message })
+    try {
+      const generated = await generateMandate(mandateInput)
+      draft = generated
+      document = generated.document
+    } catch (second) {
+      if (!(second instanceof MandateGenerationError)) throw second
+      log.warn('S002 unavailable after retry — falling back to a deterministic draft', { founderId, err: second.message })
+      draft = buildDraft(strategy)
+    }
   }
 
   assertProgramsExist(draft.activePrograms)

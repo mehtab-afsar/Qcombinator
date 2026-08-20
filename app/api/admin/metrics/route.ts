@@ -2,6 +2,77 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { verifyAdmin } from '@/lib/auth/verify';
 import { log } from '@/lib/logger'
+import { STALE_AFTER_MS } from '@/lib/rhythm/runs'
+
+interface RhythmRunRow {
+  status: string
+  started_at: string
+  last_step_at: string
+  step_count: number | null
+}
+
+/**
+ * The Operating Rhythm's real run history — whether the executive team's weekly loop is actually
+ * happening, not just whether the code that would run it exists. `stalledRunning` reuses
+ * STALE_AFTER_MS (lib/rhythm/runs.ts) rather than a second guess at what "stalled" means, so this
+ * dashboard and the founder-facing progress badge always agree.
+ */
+export function aggregateRhythmRuns(rows: RhythmRunRow[], nowMs: number) {
+  const byStatus: Record<string, number> = {}
+  let stalledRunning = 0
+  let stepSum = 0
+  let lastRunAt: string | null = null
+
+  for (const row of rows) {
+    byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+    if (row.status === 'running' && nowMs - new Date(row.last_step_at).getTime() > STALE_AFTER_MS) {
+      stalledRunning++
+    }
+    stepSum += row.step_count ?? 0
+    if (!lastRunAt || row.started_at > lastRunAt) lastRunAt = row.started_at
+  }
+
+  return {
+    totalRuns: rows.length,
+    byStatus,
+    stalledRunning,
+    avgStepCount: rows.length > 0 ? Math.round((stepSum / rows.length) * 10) / 10 : 0,
+    lastRunAt,
+  }
+}
+
+interface ActionLogRow {
+  status: string
+  provider: string | null
+  irreversible: boolean
+}
+
+/**
+ * The real record of Action attempts — internal analyses and, more importantly, the connector
+ * sends that reach outside the product. Counts ROWS (append-only, one per status transition —
+ * see action_log's own design comment), same convention as every other section in this route
+ * (e.g. tools.total counts tool_execution_logs rows, not distinct calls).
+ */
+export function aggregateActionLog(rows: ActionLogRow[]) {
+  const byStatus: Record<string, number> = {}
+  const byProvider: Record<string, number> = {}
+  let irreversibleCount = 0
+
+  for (const row of rows) {
+    byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+    const provider = row.provider ?? 'internal'
+    byProvider[provider] = (byProvider[provider] ?? 0) + 1
+    if (row.irreversible) irreversibleCount++
+  }
+
+  return {
+    total: rows.length,
+    byStatus,
+    byProvider,
+    irreversibleCount,
+    internalCount: rows.length - irreversibleCount,
+  }
+}
 
 export async function GET() {
   // ── Auth guard ────────────────────────────────────────────────────────────
@@ -15,7 +86,8 @@ export async function GET() {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const [ragResult, toolResult, qscoreResult, cacheResult, activityResult,
-         founderResult, qscoreAllResult, snapshotResult, aiUsageResult] = await Promise.all([
+         founderResult, qscoreAllResult, snapshotResult, aiUsageResult,
+         rhythmRunResult, actionLogResult] = await Promise.all([
     supabaseAdmin.from('rag_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('tool_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('qscore_history').select('overall_score, data_source, created_at').gte('created_at', since),
@@ -35,6 +107,12 @@ export async function GET() {
     supabaseAdmin.from('ai_usage_log')
       .select('program_id, action_id, asset_id, model, input_tokens, output_tokens, estimated_cost_usd, created_at')
       .gte('created_at', since).limit(20000),
+    // The Operating Rhythm's real run history
+    supabaseAdmin.from('operating_rhythm_runs')
+      .select('status, started_at, completed_at, last_step_at, step_count')
+      .gte('started_at', since),
+    // The real record of Action attempts — internal analyses and connector sends alike
+    supabaseAdmin.from('action_log').select('status, provider, irreversible, created_at').gte('created_at', since),
   ]);
 
   const ragLogs = ragResult.data ?? [];
@@ -207,6 +285,10 @@ export async function GET() {
     aiByAction[actionKey].costUsd += Number(row.estimated_cost_usd ?? 0);
   }
 
+  // ── Aggregate rhythm-run and action-log metrics ───────────────────────────
+  const rhythmMetrics = aggregateRhythmRuns((rhythmRunResult.data ?? []) as RhythmRunRow[], Date.now())
+  const actionMetrics = aggregateActionLog((actionLogResult.data ?? []) as ActionLogRow[])
+
   // ── Build response ────────────────────────────────────────────────────────
   return NextResponse.json({
     rag: {
@@ -251,6 +333,8 @@ export async function GET() {
       totalEvents: activityRows.length,
       byAgent: activityByAgent,
     },
+    rhythm: { windowDays: 7, ...rhythmMetrics },
+    actions: { windowDays: 7, ...actionMetrics },
     aiUsage: {
       windowDays: 7,
       totalCalls: aiUsageTotal,

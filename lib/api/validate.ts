@@ -367,6 +367,20 @@ export type PortfolioCompanyPatchInput  = z.infer<typeof portfolioCompanyPatchSc
 export type PortfolioCompanyInviteInput = z.infer<typeof portfolioCompanyInviteSchema>
 export type PortfolioCompanyImportInput = z.infer<typeof portfolioCompanyImportSchema>
 
+// ─── Founder contacts (AI SDR recipient source) ───────────────────────────
+// Caps are deliberate: this text lands directly in an LLM prompt for a Gmail-send Action —
+// unbounded input is unbounded spend, same reasoning as strategySchema above.
+
+export const founderContactPostSchema = z.object({
+  name:    z.string().trim().min(1, 'Name is required').max(200),
+  email:   emailSchema,
+  company: z.string().trim().max(200).optional(),
+  title:   z.string().trim().max(200).optional(),
+  notes:   z.string().trim().max(1_000).optional(),
+})
+
+export type FounderContactPostInput = z.infer<typeof founderContactPostSchema>
+
 // ─── Investor startup deep-dive: memo + share (Phase 0-I / H-3) ──────────
 
 export const startupMemoSchema = z.object({

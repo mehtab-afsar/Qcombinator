@@ -16,6 +16,7 @@ import { Check, Loader2, AlertCircle, Minus, Circle, FileText, MessageSquare, Se
 import { ink, muted, blue, green, amber, red, bdr, alpha } from '@/lib/constants/colors'
 import { ease } from '@/features/shared/tokens'
 import { FONT_SERIF } from '@/features/onboarding/theme'
+import { formatElapsed } from '../lib/format-elapsed'
 import type { StepState, StepKind, ProgressStep, RunProgress, RunSummary } from './RhythmPanel'
 
 /** Matches STEP_LIMIT_EXCEEDED in lib/rhythm/limits.ts — the circuit breaker's reason code. */
@@ -41,7 +42,9 @@ export function Empty() {
  * documentProgress's docstring for why: a founder's "documents" is 5-6 things, not 12, and
  * Actions already narrate themselves via ActionsPanel below.
  */
-export function StatusLine({ progress, docs }: { progress: RunProgress; docs: DocsProgress }) {
+export function StatusLine({
+  progress, docs, elapsedMs,
+}: { progress: RunProgress; docs: DocsProgress; elapsedMs?: number }) {
   const { status, stalled, failureReason, done, total } = progress
 
   if (failureReason === STEP_LIMIT_EXCEEDED) {
@@ -75,6 +78,7 @@ export function StatusLine({ progress, docs }: { progress: RunProgress; docs: Do
     return (
       <Line color={blue}>
         {docs.currentLabel ? `Working on ${docs.currentLabel}…` : 'Working…'} ({docs.done} of {docs.total})
+        {elapsedMs != null && ` · running for ${formatElapsed(elapsedMs)}`}
       </Line>
     )
   }

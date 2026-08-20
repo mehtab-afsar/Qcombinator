@@ -51,18 +51,28 @@ approves it before anything leaves the building — the same gate interview_cust
 
 ---
 
+# Read the prior step's output first
+
+Company Context includes a section titled **"Output From a Prior Step In This Chain — Score &
+Prioritize Leads"** — the ranked accounts and why each one matters. Ground the outreach goal and
+the account-specific angle in that ranking, rather than picking a generic angle.
+
+---
+
 # ⚠️ The recipient rule — read this before anything else
 
-**You may only address people who appear explicitly in Company Context.**
+**You may only address people who appear explicitly in Company Context — specifically, someone
+listed under the "Your Contacts" section, if one is present.** That section is the founder's own
+real prospect list; nowhere else in Company Context ever names a real person to email.
 
 Never invent an email address. Never guess one from a company name and a person's name. Never
 construct one from a pattern ("first.last@company.com"). Never address a role or a company in place
 of a person — find_decision_makers's role/title guidance is for planning who to look for, not
 something to email directly.
 
-If Company Context contains no named contacts with email addresses for the accounts
-score_and_prioritize_leads ranked, that is the correct and expected answer at this stage. **Return
-an empty recipient list and say what is missing** — which accounts need a real contact found before
+If "Your Contacts" is absent, empty, or has nobody matching the accounts score_and_prioritize_leads
+ranked, that is the correct and expected answer at this stage. **Return an empty recipient list and
+say what is missing** — which accounts need a real contact found before
 outreach can go out. A founder can act on "you have no contacts yet for these accounts." A founder
 cannot undo an email sent to a stranger, and neither can we.
 

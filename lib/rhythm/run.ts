@@ -26,6 +26,7 @@ import { RhythmError } from './errors'
 export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
 import { AlreadyExecutedError, latestPerAction } from '@/lib/actions/log'
+import { getFounderContactsContext } from '@/lib/contacts/context'
 import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { generateAssetContent } from './judge'
@@ -111,6 +112,29 @@ export async function dependencyContextFor(
   if (typeof text !== 'string' || !text.trim()) return {}
 
   return { dependencyResult: { actionId: dependsOn, label: getAction(dependsOn).name, text } }
+}
+
+/**
+ * A founder's own real contact list, but ONLY for the Actions that actually send email —
+ * `getAction(actionId).connector === 'gmail'` (today: `interview_customers`, P001, and
+ * `generate_personalized_outreach`, P005; nothing else). Empty object for every Asset, every
+ * Briefing, and every other Action — deliberately NOT part of `baseContext`, which is reused
+ * unchanged across all of those. Real PII belongs only where it's actually needed; a founder's
+ * contact reaching a persisted Asset document (with no link back to the source row to know it
+ * needs cleanup if the contact is later deleted) would be a second, silent copy of their data.
+ *
+ * Slack (`post_team_update`) is intentionally excluded even though it's also `irreversible` +
+ * `connector` — a team update has no reason to reference the founder's prospect list at all.
+ */
+export async function founderContactsContextFor(
+  admin: SupabaseClient,
+  founderId: string,
+  actionId: string,
+): Promise<Pick<CompanyContext, 'founderContacts'>> {
+  if (getAction(actionId).connector !== 'gmail') return {}
+
+  const text = await getFounderContactsContext(admin, founderId).catch(() => null)
+  return text ? { founderContacts: text } : {}
 }
 
 /**
@@ -258,13 +282,16 @@ export async function runNextStep(
           // AI SDR Milestone 1 — a no-op spread for every Action except the handful that declare
           // ActionDef.dependsOn (see dependencyContextFor's own docstring).
           const chained = await dependencyContextFor(admin, run.founderId, run.id, nextActionId)
+          // A no-op spread for every Action except the Gmail-send ones (see
+          // founderContactsContextFor's own docstring for why this stays out of baseContext).
+          const contacts = await founderContactsContextFor(admin, run.founderId, nextActionId)
           await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
             executionId: run.id,
             activePrograms: contract.activePrograms,
-            context: { ...baseContext, ...chained },
+            context: { ...baseContext, ...chained, ...contacts },
           })
         } catch (err) {
           if (err instanceof AlreadyExecutedError) {

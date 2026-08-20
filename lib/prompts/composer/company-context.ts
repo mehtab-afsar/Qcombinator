@@ -80,6 +80,12 @@ export function renderCompanyContext(
     )
   }
 
+  // A founder's own real prospect list — populated NARROWLY (only for Gmail-send Actions, see
+  // lib/rhythm/run.ts's founderContactsContextFor), never present for an Asset, a Briefing, or
+  // any other Action. Rendered plainly like everything else here: this is real PII, but it's
+  // still DATA, not instructions — the same fencing discipline as the rest of this layer.
+  field('Your Contacts', context.founderContacts)
+
   field('New Information This Cycle', context.newInformation)
 
   return parts.join('\n').trimEnd()

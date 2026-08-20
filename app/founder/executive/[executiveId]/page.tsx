@@ -35,6 +35,7 @@ import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
 import { ProgramAssetsPanel } from '@/features/executive/components/ProgramAssetsPanel'
+import { ContactsPrompt } from '@/features/executive/components/ContactsPrompt'
 import { ExecutiveAnchor } from '@/features/executive/components/ExecutiveAnchor'
 import { BirdsEyeStats } from '@/features/executive/components/BirdsEyeStats'
 import { ActivityLog } from '@/features/executive/components/ActivityLog'
@@ -265,6 +266,8 @@ export default function ExecutiveDetailPage() {
                       <BirdsEyeStats executiveId={executiveId} />
                       <RhythmPanel executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
                     </div>
+                    {/* Only P005's outreach needs this — see ContactsPrompt's own docstring. */}
+                    {panelProgramTemplateId === 'P005' && <ContactsPrompt />}
                     {/* 3. Documents (§4.3) */}
                     <ProgramAssetsPanel
                       executiveId={executiveId} onOpenAsset={openAsset} programTemplateId={panelProgramTemplateId}

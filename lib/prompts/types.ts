@@ -91,6 +91,16 @@ export interface CompanyContext {
    * qScore/comparableCohort: composing never moves the Q-Score, and never will from this field.
    */
   marketSignals?: string
+  /**
+   * A founder's own real prospect list — name/email/company/title, one line each. Populated
+   * NARROWLY: only for Actions whose `connector === 'gmail'` (see `lib/rhythm/run.ts`'s
+   * `founderContactsContextFor`), never merged into the shared context every Asset/Briefing/
+   * Action across every Program sees. That narrowness is deliberate — this is real PII, and a
+   * founder's contact reaching, say, a persisted Asset document with no link back to the
+   * source row would be a second, silent copy of their data with no way to know it needs
+   * cleanup when the contact is later deleted.
+   */
+  founderContacts?: string
 }
 
 export interface ComposeInput {

@@ -20,13 +20,24 @@ import type { ActionDef } from '../../../types'
  * Same recipient discipline as interview_customers.ts: only people named
  * with an email address in Company Context; no invented, guessed or
  * pattern-constructed addresses; an empty recipient list is a valid, honest
- * answer.
+ * answer. As of the founder_contacts feature, "named in Company Context"
+ * means the founder's own real prospect list — see
+ * lib/rhythm/run.ts's founderContactsContextFor and lib/contacts/context.ts.
+ *
+ * `dependsOn: 'score_and_prioritize_leads'` — the fourth link in P005's chain
+ * (find_target_companies → find_decision_makers → research_account →
+ * score_and_prioritize_leads), added alongside founder_contacts so this step
+ * writes from real research instead of cold. Safe: the whole upstream chain
+ * never names a real person (role/title only, by design — see
+ * find-decision-makers.ts), so there is no collision risk with a founder's
+ * actual contact list.
  */
 export const GENERATE_PERSONALIZED_OUTREACH: ActionDef = {
   id: 'generate_personalized_outreach',
   program: 'P005',
   name: 'Generate & Send Personalized Outreach',
   kind: 'oneoff',
+  dependsOn: 'score_and_prioritize_leads',
   irreversible: true,
   connector: 'gmail',
   instructionsRef: 'generate_personalized_outreach',

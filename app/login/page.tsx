@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Rocket, Briefcase } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { bg, surf, bdr, ink, muted, blue, green } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted } from '@/lib/constants/colors'
 
 function LoginForm() {
   const router = useRouter();
@@ -186,43 +186,50 @@ function LoginForm() {
           <div style={{ flex: 1, height: 1, background: bdr }} />
         </div>
 
+        {/* Monochrome by design — everywhere else on this page is ink/muted/bdr only; the old
+            colored icon chips, colored borders and colored shadow here were the one spot
+            breaking that restraint. Weight, not hue, tells the two paths apart: founder is the
+            filled/primary card, investor the outlined/secondary one — same pattern as a
+            primary+secondary button pair. */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {[
-            { href: "/founder/onboarding", role: "I'm a founder",  cta: "Get started", accent: blue,  Icon: Rocket },
-            { href: "/investor/onboarding", role: "I'm an investor", cta: "Join in",     accent: green, Icon: Briefcase },
-          ].map(({ href, role, cta, accent, Icon }) => (
+            { href: "/founder/onboarding", role: "I'm a founder",  cta: "Get started", Icon: Rocket, primary: true },
+            { href: "/investor/onboarding", role: "I'm an investor", cta: "Join in",     Icon: Briefcase, primary: false },
+          ].map(({ href, role, cta, Icon, primary }) => (
             <Link
               key={href}
               href={href}
               style={{
                 display: "flex", flexDirection: "column", gap: 8,
-                padding: "14px 14px", borderRadius: 12, textDecoration: "none",
-                border: `1.5px solid ${bdr}`, background: bg,
+                padding: "16px 14px", borderRadius: 12, textDecoration: "none",
+                border: `1.5px solid ${primary ? ink : bdr}`,
+                background: primary ? ink : bg,
                 transition: "border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = accent;
-                e.currentTarget.style.background = `${accent}0a`;
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = `0 6px 20px -10px ${accent}80`;
+                e.currentTarget.style.boxShadow = primary
+                  ? `0 8px 22px -10px ${ink}66`
+                  : "0 6px 18px -10px rgba(24,22,15,0.18)";
+                if (!primary) e.currentTarget.style.borderColor = ink;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = bdr;
-                e.currentTarget.style.background = bg;
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "none";
+                if (!primary) e.currentTarget.style.borderColor = bdr;
               }}
             >
               <span style={{
-                width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                background: `${accent}14`, color: accent,
+                background: primary ? "rgba(249,247,242,0.14)" : surf,
+                color: primary ? bg : ink,
               }}>
-                <Icon size={16} strokeWidth={2} />
+                <Icon size={15} strokeWidth={1.75} />
               </span>
-              <span style={{ fontSize: 11.5, color: muted, fontWeight: 500 }}>{role}</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 14.5, color: ink, fontWeight: 700, letterSpacing: "-0.01em" }}>
-                {cta} <ArrowRight size={14} strokeWidth={2.5} color={accent} />
+              <span style={{ fontSize: 11.5, color: primary ? "rgba(249,247,242,0.6)" : muted, fontWeight: 500 }}>{role}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 14.5, color: primary ? bg : ink, fontWeight: 650, letterSpacing: "-0.01em" }}>
+                {cta} <ArrowRight size={14} strokeWidth={2} />
               </span>
             </Link>
           ))}

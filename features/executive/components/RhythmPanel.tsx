@@ -146,6 +146,18 @@ export function RhythmPanel({
     return () => { if (timer.current) clearInterval(timer.current) }
   }, [live, load])
 
+  // A ticking "running for Nm Ns" so a long cycle (several minutes, one step can alone take up
+  // to 180s) reads as "still working" rather than "stalled" between polls — the actual step
+  // counts above only move once every POLL_MS at best. Deliberately NOT an estimated time
+  // remaining: step duration varies too much by asset/action to guess honestly, and a wrong ETA
+  // erodes trust worse than no ETA.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!live) return
+    const tick = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(tick)
+  }, [live])
+
   // PRD 2 Stage 2 Part B, moved here from the deleted ActivationScreen.tsx — live text for
   // whatever's actively generating, regardless of who/what triggered this run. Same
   // postgres_changes pattern already used by useMessageThread.ts/useQScore.tsx, reused for
@@ -214,6 +226,8 @@ export function RhythmPanel({
   // that does that. `startCycle` already calls the same POST /api/rhythm/run that correctly
   // resumes a stale run (lib/rhythm/runs.ts's createOrResumeRun) — this was a visibility bug,
   // not a missing capability.
+  const elapsedMs = live && programScoped ? now - new Date(programScoped.startedAt).getTime() : undefined
+
   return (
     <SectionCard
       title="This week's cycle"
@@ -235,7 +249,7 @@ export function RhythmPanel({
       ) : (
         <>
           {!programScoped && <Empty />}
-          {programScoped && docs && <StatusLine progress={programScoped} docs={docs} />}
+          {programScoped && docs && <StatusLine progress={programScoped} docs={docs} elapsedMs={elapsedMs} />}
           {docs && (
             <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
               {docs.steps.map(step => (

@@ -62,6 +62,24 @@ interface BetaMetrics {
   scoreDistribution: { excellent: number; good: number; fair: number; poor: number };
 }
 
+interface RhythmMetrics {
+  windowDays: number;
+  totalRuns: number;
+  byStatus: Record<string, number>;
+  stalledRunning: number;
+  avgStepCount: number;
+  lastRunAt: string | null;
+}
+
+interface ActionMetrics {
+  windowDays: number;
+  total: number;
+  byStatus: Record<string, number>;
+  byProvider: Record<string, number>;
+  irreversibleCount: number;
+  internalCount: number;
+}
+
 interface AdminMetrics {
   rag: RagMetrics;
   tools: ToolMetrics;
@@ -69,6 +87,8 @@ interface AdminMetrics {
   cache: CacheMetrics;
   activity: ActivityMetrics;
   beta: BetaMetrics;
+  rhythm: RhythmMetrics;
+  actions: ActionMetrics;
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -150,7 +170,7 @@ export default function AdminMetricsPage() {
 
   if (!data) return null;
 
-  const { rag, tools, scores, cache, activity, beta } = data;
+  const { rag, tools, scores, cache, activity, beta, rhythm, actions } = data;
   const ragMethodTotal = Object.values(rag.byMethod).reduce((a, b) => a + b, 0);
   const toolsByTotalDesc = Object.entries(tools.byTool).sort((a, b) => b[1].total - a[1].total);
   const topAgent = Object.entries(activity.byAgent).sort((a, b) => b[1] - a[1])[0];
@@ -273,6 +293,40 @@ export default function AdminMetricsPage() {
                 .map(([agentId, count]) => (
                   <BarSegment key={agentId} label={agentId} count={count} total={activity.totalEvents} color={blue} />
                 ))}
+            </div>
+          </Card>
+
+          {/* Card 3b — Operating Rhythm: is the executive team's weekly loop actually running */}
+          <Card title={`Operating Rhythm (${rhythm.windowDays}d)`}>
+            <StatRow label="Total runs" value={rhythm.totalRuns} />
+            <StatRow
+              label="Stalled (running, no step progress)"
+              value={rhythm.stalledRunning}
+              highlight={rhythm.stalledRunning > 0 ? red : green}
+            />
+            <StatRow label="Avg steps per run" value={rhythm.avgStepCount} />
+            <StatRow label="Last run started" value={rhythm.lastRunAt ? new Date(rhythm.lastRunAt).toLocaleString() : '—'} />
+            <div style={{ marginTop: 12 }}>
+              {Object.entries(rhythm.byStatus).map(([status, count]) => (
+                <BarSegment key={status} label={status} count={count} total={rhythm.totalRuns} color={blue} />
+              ))}
+            </div>
+          </Card>
+
+          {/* Card 3c — Actions: is the executive team actually executing, not just proposing */}
+          <Card title={`Actions (${actions.windowDays}d)`}>
+            <StatRow label="Total attempts" value={actions.total} />
+            <StatRow label="Reached outside the product (connector)" value={actions.irreversibleCount} />
+            <StatRow label="Internal only" value={actions.internalCount} />
+            <div style={{ marginTop: 12 }}>
+              {Object.entries(actions.byStatus).map(([status, count]) => (
+                <BarSegment key={status} label={status} count={count} total={actions.total} color={blue} />
+              ))}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              {Object.entries(actions.byProvider).map(([provider, count]) => (
+                <BarSegment key={provider} label={provider} count={count} total={actions.total} color={amber} />
+              ))}
             </div>
           </Card>
 

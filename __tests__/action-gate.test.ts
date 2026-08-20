@@ -33,9 +33,14 @@ const program = {
   id: 'prog1', contractId: 'c1', templateId: 'P001' as const, owner: 'growth',
   objective: 'o', successMetric: 's', status: 'active' as const,
 }
+// A real Company Context, not an empty one: every recipient this file's PAYLOAD_REPLY fixtures
+// use (jane@acme.com, j@acme.com) must actually appear here, or the new recipient-in-context
+// check (lib/actions/generate.ts) would correctly reject them — same as it must reject a
+// genuinely invented address. See the dedicated describe block below for that check itself.
 const args = (actionId: string) => ({
   founderId: 'f1', program, actionId: actionId as never, executionId: 'run-1',
-  activePrograms: ['P001' as const], context: {},
+  activePrograms: ['P001' as const],
+  context: { strategy: 'Interview candidates: Jane, jane@acme.com. J, j@acme.com.' },
 })
 
 /** A connector Action must emit a JSON payload; the engine refuses one that does not. */
@@ -162,6 +167,47 @@ describe('a connector Action refuses an unusable payload', () => {
   it('an internal Action needs no JSON block', () => {
     expect(parseActionPayload('just prose', false)).toBeNull()
     expect(() => parseActionPayload('just prose', true)).toThrow(ActionGenerationError)
+  })
+})
+
+describe('a recipient must appear in Company Context (ROADMAP_STATUS.md — "largest unmitigated risk in Story 3")', () => {
+  it('an address that appears nowhere in Company Context is refused, not approved', async () => {
+    m(routedCall).mockResolvedValue({
+      text: '```json\n{"recipients":[{"name":"Eve","email":"eve@evil.com"}],"subject":"s","body":"b"}\n```',
+      toolCall: null, stopReason: 'end_turn',
+    })
+    await expect(generateAction(admin, args('interview_customers')))
+      .rejects.toThrow(/do not appear in Company Context/)
+    expect(recordAttempt).not.toHaveBeenCalled()
+  })
+
+  it('a harmless casing difference from Company Context is not a false block', async () => {
+    m(routedCall).mockResolvedValue({
+      text: '```json\n{"recipients":[{"name":"Jane","email":"JANE@ACME.COM"}],"subject":"s","body":"b"}\n```',
+      toolCall: null, stopReason: 'end_turn',
+    })
+    await expect(generateAction(admin, args('interview_customers'))).resolves.toBeDefined()
+    expect(m(recordAttempt).mock.calls[0][1].status).toBe('pending_approval')
+  })
+
+  it('a real founder_contacts entry, rendered via founderContacts, satisfies the check on its own', async () => {
+    // Closes the loop this table exists for: NOT `strategy` this time — the address is only in
+    // `founderContacts` (what lib/rhythm/run.ts's founderContactsContextFor actually threads
+    // through for a Gmail-send Action), proving that field alone is enough for a real payload
+    // to become approvable, not just a theoretical wiring exercise.
+    m(routedCall).mockResolvedValue({
+      text: '```json\n{"recipients":[{"name":"Priya","email":"priya@northwind.com"}],"subject":"s","body":"b"}\n```',
+      toolCall: null, stopReason: 'end_turn',
+    })
+    await expect(generateAction(admin, {
+      founderId: 'f1',
+      program: { ...program, templateId: 'P005' as const },
+      actionId: 'generate_personalized_outreach' as never,
+      executionId: 'run-1',
+      activePrograms: ['P005' as const],
+      context: { founderContacts: 'Priya <priya@northwind.com> — VP Sales at Northwind' },
+    })).resolves.toBeDefined()
+    expect(m(recordAttempt).mock.calls[0][1].status).toBe('pending_approval')
   })
 })
 

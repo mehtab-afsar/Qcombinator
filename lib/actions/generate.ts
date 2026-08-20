@@ -103,6 +103,31 @@ function assertRecipientsUsable(payload: ActionPayload): void {
 }
 
 /**
+ * Every recipient's email must appear in the Company Context this generation actually saw. The
+ * prompt (layer 3 + `ACTION_FORMAT_RULE`'s recipient rule in `composer/execution.ts`) already
+ * tells the model this; this is the code-level check that it was followed — ROADMAP_STATUS.md's
+ * "largest unmitigated risk in Story 3": a prompt is not a control, and a plausible-looking
+ * invented address is exactly what a founder skimming the payload to approve it would miss.
+ *
+ * All-or-nothing, same as `assertRecipientsAllowed` in `lib/connectors/allowlist.ts`: refusing
+ * the whole generation is louder and safer than silently dropping the one bad recipient.
+ */
+function assertRecipientsInContext(payload: ActionPayload, companyContextText: string): void {
+  const contextEmails = new Set(
+    (companyContextText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? [])
+      .map(e => e.toLowerCase()),
+  )
+  const invented = (payload.recipients ?? [])
+    .map(r => r.email.toLowerCase())
+    .filter(email => !contextEmails.has(email))
+  if (invented.length > 0) {
+    throw new ActionGenerationError(
+      `${invented.length} recipient(s) do not appear in Company Context — refusing to prepare a payload with an address the founder never gave us`,
+    )
+  }
+}
+
+/**
  * Generate one Action and record the attempt. Service-role client required.
  *
  * @returns the `action_log` entry — `pending_approval` for anything irreversible, `executed` for
@@ -154,7 +179,11 @@ export async function generateAction(
   }
 
   const payload = parseActionPayload(raw, reachesOutside) ?? { body: raw }
-  if (reachesOutside) assertRecipientsUsable(payload)
+  if (reachesOutside) {
+    assertRecipientsUsable(payload)
+    const companyContextText = pkg.layers.find(l => l.name === 'company_context')!.text
+    assertRecipientsInContext(payload, companyContextText)
+  }
 
   // ── THE GATE ────────────────────────────────────────────────────────────────────
   // Irreversible → recorded and STOPPED. No execution path is reachable from here; the founder
