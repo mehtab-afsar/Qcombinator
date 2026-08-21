@@ -125,6 +125,25 @@ function validateGenerated(json: unknown): ContractDraft {
     throw new MandateGenerationError('The mandate assigned responsibility to no executive.')
   }
 
+  // Every executive named in `responsibilities` must own at least one Program in
+  // `activePrograms` — otherwise the founder-facing page shows that executive's mandate line
+  // with no active work behind it (a silent blank void, not an honest empty state). The model
+  // can write these two fields independently; nothing else here cross-checks them.
+  for (const { executive } of responsibilities) {
+    const ownsActiveProgram = activePrograms.some(id => {
+      try {
+        return getProgram(id).owner === executive
+      } catch {
+        return false // already reported above as an unknown program id
+      }
+    })
+    if (!ownsActiveProgram) {
+      throw new MandateGenerationError(
+        `The mandate assigned responsibility to '${executive}' without activating any of their programs.`,
+      )
+    }
+  }
+
   return {
     priorities,
     successMetrics,

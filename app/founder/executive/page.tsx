@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, TrendingUp } from 'lucide-react'
 import { bg, red, alpha } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
+import { useExecutiveWorkspace } from '@/features/executive/hooks/useExecutiveWorkspace'
 import { PageHeader } from '@/features/shared/components/PageHeader'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageIconLoader } from '@/features/shared/components/Spinner'
@@ -31,13 +32,7 @@ import { CommandView } from '@/features/executive/components/CommandView'
 import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { Unveiling } from '@/features/executive/components/unveiling/Unveiling'
-import {
-  resolveJourneyState,
-  type Contract,
-  type JourneyState,
-  type ProgramInstance,
-  type Strategy,
-} from '@/features/executive/types/executive.types'
+import { resolveJourneyState, type JourneyState, type Strategy } from '@/features/executive/types/executive.types'
 
 function subtitleFor(state: JourneyState): string {
   switch (state) {
@@ -56,41 +51,35 @@ function subtitleFor(state: JourneyState): string {
 
 export default function ExecutivePage() {
   const { qScore, loading: qScoreLoading } = useQScore()
+  // Contract + programs come from the shared workspace; only Strategy (F07's own read, no shared
+  // home) is still fetched here.
+  const { contract, programs, loaded: contractLoaded, disabled: contractDisabled, refreshContract } = useExecutiveWorkspace()
   const [strategy, setStrategy] = useState<Strategy | null>(null)
-  const [contract, setContract] = useState<Contract | null>(null)
-  const [programs, setPrograms] = useState<ProgramInstance[]>([])
-  const [loading, setLoading] = useState(true)
+  const [strategyLoaded, setStrategyLoaded] = useState(false)
+  const [strategyDisabled, setStrategyDisabled] = useState(false)
   const [timedOut, setTimedOut] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [disabled, setDisabled] = useState(false)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const loadStrategy = useCallback(async () => {
     setTimedOut(false)
     try {
-      const [sRes, cRes] = await Promise.all([fetchWithTimeout('/api/strategy'), fetchWithTimeout('/api/contracts')])
-
-      if (sRes.status === 404 || cRes.status === 404) {
+      const sRes = await fetchWithTimeout('/api/strategy')
+      if (sRes.status === 404) {
         // The flag is off — the new model is not switched on here.
-        setDisabled(true)
+        setStrategyDisabled(true)
         return
       }
       if (sRes.ok) setStrategy((await sRes.json()).strategy)
-      if (cRes.ok) {
-        const data = await cRes.json()
-        setContract(data.contract)
-        setPrograms(data.programs ?? [])
-      }
     } catch (err) {
       if (isTimeoutError(err)) setTimedOut(true)
       else setError('Could not load your mandate.')
     } finally {
-      setLoading(false)
+      setStrategyLoaded(true)
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void loadStrategy() }, [loadStrategy])
 
   async function post(url: string, body?: unknown) {
     setBusy(true)
@@ -108,7 +97,7 @@ export default function ExecutivePage() {
         setError(data.error ?? 'Something went wrong.')
         return
       }
-      await load()
+      await Promise.all([loadStrategy(), refreshContract()])
     } catch {
       setError('Could not reach the server. Try again.')
     } finally {
@@ -116,7 +105,7 @@ export default function ExecutivePage() {
     }
   }
 
-  if (loading || qScoreLoading) {
+  if (qScoreLoading || !strategyLoaded || !contractLoaded) {
     return <PageIconLoader label="Loading…" />
   }
 
@@ -127,13 +116,13 @@ export default function ExecutivePage() {
           icon={AlertCircle}
           title="This is taking longer than expected"
           body="We couldn't load your executive team in time."
-          action={{ label: 'Try again', onClick: () => void load() }}
+          action={{ label: 'Try again', onClick: () => void loadStrategy() }}
         />
       </Shell>
     )
   }
 
-  if (disabled) {
+  if (strategyDisabled || contractDisabled) {
     return (
       <Shell>
         <EmptyState title="This isn’t switched on yet." />
@@ -174,7 +163,11 @@ export default function ExecutivePage() {
           right layer itself from strategy/contract — see Unveiling's entryStep(). */}
       {(state === 'no_strategy' || state === 'no_contract' || state === 'draft') && (
         <div style={{ marginTop: 24 }}>
-          <Unveiling strategy={strategy} contract={contract} onDone={load} />
+          <Unveiling
+            strategy={strategy}
+            contract={contract}
+            onDone={() => void Promise.all([loadStrategy(), refreshContract()])}
+          />
         </div>
       )}
 

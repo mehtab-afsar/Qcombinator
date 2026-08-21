@@ -6,6 +6,7 @@ import FounderSidebar, { FounderNotificationBell } from "@/features/founder/comp
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastStack } from "@/features/shared/components/Toast";
 import { useToast } from "@/features/shared/hooks/useToast";
+import { ExecutiveWorkspaceProvider } from "@/features/executive/hooks/useExecutiveWorkspace";
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const pathname     = usePathname();
@@ -52,7 +53,9 @@ export default function FounderLayout({ children }: { children: React.ReactNode 
       {/* fallback=null prevents children from mounting twice (once in fallback, once in LayoutInner)
           which would re-fire useEffects after Suspense resolves during client hydration */}
       <Suspense fallback={null}>
-        <LayoutInner>{children}</LayoutInner>
+        <ExecutiveWorkspaceProvider>
+          <LayoutInner>{children}</LayoutInner>
+        </ExecutiveWorkspaceProvider>
       </Suspense>
     </ErrorBoundary>
   );

@@ -10,18 +10,17 @@
  * existing generic detail page (/founder/executive/[executiveId]).
  *
  * Route-aware wrapper around the one shared TabNav — not a second tab primitive
- * (CLAUDE.md "one of each"). Self-fetches /api/executives + /api/contracts + /api/actions, the
- * same calls ExecutiveRoster already makes, to derive each tab's idle/active/needs-you dot.
+ * (CLAUDE.md "one of each"). Reads executives/programs/pending actions from the shared
+ * ExecutiveWorkspaceProvider (features/executive/hooks/useExecutiveWorkspace.tsx) instead of
+ * self-fetching — those three endpoints are founder-wide and already loaded by the time this
+ * mounts, so this no longer re-asks the server on every render.
  */
 
-import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { TabNav } from '@/features/shared/components/TabNav'
 import { amber, ink, bdr } from '@/lib/constants/colors'
 import { SHORT_LABEL, Dot } from '../lib/executiveLabels'
-import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
-
-interface OwnedAction { executiveId: string | null }
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 
 function routeFor(executiveId: string): string {
   return executiveId === 'ceo' ? '/founder/executive' : `/founder/executive/${executiveId}`
@@ -30,34 +29,12 @@ function routeFor(executiveId: string): string {
 export function ExecutiveTabBar() {
   const router = useRouter()
   const pathname = usePathname()
-  const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
-  const [programs, setPrograms] = useState<ProgramInstance[]>([])
-  const [pending, setPending] = useState<OwnedAction[]>([])
-
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const [execRes, contractRes, actionRes] = await Promise.all([
-          fetch('/api/executives'),
-          fetch('/api/contracts'),
-          fetch('/api/actions'),
-        ])
-        if (!live) return
-        if (execRes.ok) setExecutives((await execRes.json()).executives ?? [])
-        if (contractRes.ok) setPrograms((await contractRes.json()).programs ?? [])
-        if (actionRes.ok) setPending((await actionRes.json()).pending ?? [])
-      } catch {
-        if (live) setExecutives([]) // fail quiet — navigation still works via direct links
-      }
-    })()
-    return () => { live = false }
-  }, [])
+  const { executives, programs, actions } = useExecutiveWorkspace()
 
   if (executives.length === 0) return null
 
   const activeIds = new Set(programs.map(p => p.owner))
-  const needsYouIds = new Set(pending.filter(a => a.executiveId).map(a => a.executiveId as string))
+  const needsYouIds = new Set(actions.pending.filter(a => a.executiveId).map(a => a.executiveId as string))
 
   const tabs = executives.map(e => ({
     id: routeFor(e.id),

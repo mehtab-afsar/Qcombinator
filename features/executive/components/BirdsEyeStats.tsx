@@ -8,54 +8,22 @@
  * need a clean executive→Q-Score-param mapping that doesn't exist yet (see ExecutiveRead.tsx's
  * docstring and the plan for this build) — shipping 3 honest tiles beats 1 fabricated one.
  *
- * Client boundary, same as RhythmPanel/ActionsPanel: self-fetches, never imports lib/rhythm or
- * lib/registry — local types mirror the API shape rather than importing server types.
+ * Client boundary, same as RhythmPanel/ActionsPanel: never imports lib/rhythm or lib/registry.
+ * Takes the already-shared `rhythm` state (useRhythmProgress, lifted once by the page) as a prop
+ * instead of independently re-fetching /api/rhythm/run — the same pattern RhythmPanel itself
+ * uses. Pending-action count comes from the shared ExecutiveWorkspaceProvider.
  */
 
-import { useEffect, useState } from 'react'
 import { ink, muted, bdr, bg, amber } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
-import { scopeStepsToExecutive, documentProgress, type ScopableStepWithKind } from '../lib/scope-progress'
+import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
+import type { RhythmProgressState } from '../hooks/useRhythmProgress'
 
-interface Step extends ScopableStepWithKind {
-  key: string
-}
-
-interface Progress {
-  status: 'running' | 'completed' | 'failed'
-  startedAt: string
-  completedAt: string | null
-  steps: Step[]
-}
-
-interface PendingAction {
-  executiveId?: string | null
-}
-
-export function BirdsEyeStats({ executiveId }: { executiveId: string }) {
-  const [progress, setProgress] = useState<Progress | null>(null)
-  const [pendingCount, setPendingCount] = useState(0)
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const [runRes, actionRes] = await Promise.all([fetch('/api/rhythm/run'), fetch('/api/actions')])
-        if (!live) return
-        if (runRes.ok) setProgress((await runRes.json()).progress ?? null)
-        if (actionRes.ok) {
-          const pending: PendingAction[] = (await actionRes.json()).pending ?? []
-          setPendingCount(pending.filter(a => a.executiveId === executiveId).length)
-        }
-      } catch {
-        /* leave the last good state — this is a glance, not the source of truth */
-      } finally {
-        setLoaded(true)
-      }
-    })()
-    return () => { live = false }
-  }, [executiveId])
+export function BirdsEyeStats({ executiveId, rhythm }: { executiveId: string; rhythm: RhythmProgressState }) {
+  const { actions: { pending } } = useExecutiveWorkspace()
+  const { progress, loaded } = rhythm
+  const pendingCount = pending.filter(a => a.executiveId === executiveId).length
 
   if (!loaded || !progress) return null
 

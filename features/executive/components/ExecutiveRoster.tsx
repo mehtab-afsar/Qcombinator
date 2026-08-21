@@ -4,9 +4,9 @@
  * The 5 Executives, always all of them, fixed Registry order — the roster that answers
  * "where did Patel go?" (nowhere — see ExecutiveCard's docstring).
  *
- * Self-fetching, like BriefingsPanel/ActionsPanel/RhythmPanel: pulls the Registry roster, the
- * latest briefing per program, and pending actions, then does the client-side JOIN by id to build
- * each card's view model. This is data composition for display, not executive reasoning
+ * Executives and pending actions come from the shared ExecutiveWorkspaceProvider; this still
+ * self-fetches /api/briefings (no shared home for that yet) and does the client-side JOIN by id
+ * to build each card's view model. This is data composition for display, not executive reasoning
  * (CLAUDE.md §2) — the same class of work BriefingsPanel's bodySummary()/changedAssets() already
  * does; no decision gets made here, only "which already-fetched facts belong on which card."
  *
@@ -31,13 +31,13 @@ import { motion } from 'framer-motion'
 import { ExecutiveCard, type ExecutiveCardData } from './ExecutiveCard'
 import { ScoreAnchor } from './ScoreAnchor'
 import { orbitPosition } from '../lib/orbit-layout'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 import { useIsWide } from '@/features/shared/hooks/useIsWide'
 import { ease } from '@/features/shared/tokens'
 import { muted } from '@/lib/constants/colors'
-import type { ExecutiveSummary, ProgramInstance } from '../types/executive.types'
+import type { ProgramInstance } from '../types/executive.types'
 
 interface Briefing { id: string; programId: string | null; executiveId: string | null; verdict: string; createdAt: string }
-interface OwnedAction { id: string; executiveId: string | null }
 
 /** Staggered entrance for the one-time "your team assembles" reveal (CommandView). */
 const containerVariants = { hidden: {}, show: { transition: { staggerChildren: 0.12 } } }
@@ -63,9 +63,8 @@ const CENTRE_HALF_HEIGHT = 120
  *   confirmed yet doesn't render this at all).
  */
 export function ExecutiveRoster({ programs, reveal = false }: { programs: ProgramInstance[]; reveal?: boolean }) {
-  const [executives, setExecutives] = useState<ExecutiveSummary[] | null>(null)
+  const { executives, loaded, actions: { pending } } = useExecutiveWorkspace()
   const [briefings, setBriefings] = useState<Briefing[]>([])
-  const [pending, setPending] = useState<OwnedAction[]>([])
   // Phase 1 of the cockpit build — which card (if any) the founder just clicked into, so its
   // siblings can dim while it leads the transition (ExecutiveCard's own entrance animation).
   const [leavingId, setLeavingId] = useState<string | null>(null)
@@ -75,18 +74,10 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
     let live = true
     void (async () => {
       try {
-        const [execRes, briefRes, actionRes] = await Promise.all([
-          fetch('/api/executives'),
-          fetch('/api/briefings'),
-          fetch('/api/actions'),
-        ])
-        if (!live) return
-        if (execRes.ok) setExecutives((await execRes.json()).executives ?? [])
-        if (briefRes.ok) setBriefings((await briefRes.json()).latest ?? [])
-        if (actionRes.ok) setPending((await actionRes.json()).pending ?? [])
+        const res = await fetch('/api/briefings')
+        if (res.ok && live) setBriefings((await res.json()).latest ?? [])
       } catch {
-        if (live) setExecutives([]) // fail quiet — this is a secondary surface on a page that
-                                     // already shows the mandate; do not error the whole view.
+        /* fail quiet — this is a secondary surface on a page that already shows the mandate */
       }
     })()
     return () => { live = false }
@@ -102,7 +93,7 @@ export function ExecutiveRoster({ programs, reveal = false }: { programs: Progra
   // ScoreAnchor renders regardless of the roster's own load state — it used to be rendered
   // unconditionally by CommandView, a step above this component; owning it here must not make
   // it disappear while executives are loading or if the fetch comes back empty.
-  if (!executives || executives.length === 0) {
+  if (!loaded || executives.length === 0) {
     if (!wide) return <ScoreAnchor />
     return (
       <div style={{ position: 'relative', height: stageHeight, maxWidth: 1040, margin: '0 auto' }}>

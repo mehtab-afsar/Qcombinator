@@ -19,10 +19,10 @@
  * Thin: renders state, calls the API. No executive reasoning (CLAUDE.md §2).
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Inbox, AlertCircle, Compass } from 'lucide-react'
+import { Inbox, Compass } from 'lucide-react'
 import { bg, muted, ink } from '@/lib/constants/colors'
 import { space, ease } from '@/features/shared/tokens'
 import { PageHeader } from '@/features/shared/components/PageHeader'
@@ -30,7 +30,6 @@ import { PageContainer } from '@/features/shared/components/PageContainer'
 import { Breadcrumb } from '@/features/shared/components/Breadcrumb'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { PageIconLoader } from '@/features/shared/components/Spinner'
-import { fetchWithTimeout, isTimeoutError } from '@/features/shared/lib/fetchWithTimeout'
 import { RhythmPanel } from '@/features/executive/components/RhythmPanel'
 import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
@@ -49,8 +48,9 @@ import { ProgramOverviewGrid } from '@/features/executive/components/ProgramOver
 import { useProgramTabs } from '@/features/executive/hooks/useProgramTabs'
 import { useRhythmProgress } from '@/features/executive/hooks/useRhythmProgress'
 import { useAutoOpenLiveAsset } from '@/features/executive/hooks/useAutoOpenLiveAsset'
+import { useExecutiveWorkspace } from '@/features/executive/hooks/useExecutiveWorkspace'
 import type { Rect } from '@/features/executive/lib/panel-origin'
-import type { Contract, ExecutiveSummary, ProgramInstance } from '@/features/executive/types/executive.types'
+import type { Contract } from '@/features/executive/types/executive.types'
 
 // Phase 1's entrance choreography, continued: the cockpit's sections stagger in on mount —
 // same vocabulary as ExecutiveRoster's "team assembles" reveal, not a new one.
@@ -59,8 +59,6 @@ const sectionVariants = {
   hidden: { opacity: 0, y: 10 },
   show: { opacity: 1, y: 0, transition: { duration: 0.35, ease } },
 }
-
-type LoadState = 'loading' | 'timeout' | 'not_found' | 'ready'
 
 /**
  * "Confirm" — always a read-only status line, never a button, on every tab but the CEO's.
@@ -88,14 +86,15 @@ export default function ExecutiveDetailPage() {
   const executiveId = String(useParams().executiveId ?? '')
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [state, setState] = useState<LoadState>('loading')
-  const [executive, setExecutive] = useState<ExecutiveSummary | null>(null)
-  // Was a singular `program: ProgramInstance | null` via `.find()` — silently kept only the
-  // FIRST of this executive's Programs and discarded the rest. An executive can own several
-  // (Growth now owns 8) — every one of them needs to be known, not just one.
-  const [programs, setPrograms] = useState<ProgramInstance[]>([])
-  const [contract, setContract] = useState<Contract | null>(null)
-  const live = useRef(true)
+  // Executives, the contract and its Programs come from the shared ExecutiveWorkspaceProvider
+  // (mounted in app/founder/layout.tsx) — already loaded by the time this page mounts on a tab
+  // switch, so switching executives no longer re-fetches or blanks the screen. Was a singular
+  // `program: ProgramInstance | null` via `.find()` — silently kept only the FIRST of this
+  // executive's Programs and discarded the rest. An executive can own several (Growth now owns
+  // 8) — every one of them needs to be known, not just one.
+  const { executives, contract, programs: allPrograms, loaded } = useExecutiveWorkspace()
+  const executive = executives.find(e => e.id === executiveId) ?? null
+  const programs = allPrograms.filter(p => p.owner === executiveId)
 
   // Sub-navigation between this executive's own Programs — see useProgramTabs's own docstring.
   const { activeProgramId, selectProgram, activeProgram, showOverviewGrid, panelProgramTemplateId } =
@@ -128,59 +127,11 @@ export default function ExecutiveDetailPage() {
     router.push(window.location.pathname, { scroll: false })
   }, [router, recordDismissal])
 
-  const load = useCallback(async () => {
-    setState('loading')
-    try {
-      const [execRes, contractRes] = await Promise.all([
-        fetchWithTimeout('/api/executives'),
-        fetchWithTimeout('/api/contracts'),
-      ])
-      if (!live.current) return
-      if (!execRes.ok || !contractRes.ok) { setState('not_found'); return }
-
-      const found: ExecutiveSummary | undefined =
-        (await execRes.json()).executives?.find((e: ExecutiveSummary) => e.id === executiveId)
-      if (!live.current) return
-      if (!found) { setState('not_found'); return } // an unknown id — honest 404, not a crash
-
-      const contractData = await contractRes.json()
-      if (!live.current) return
-      const allPrograms: ProgramInstance[] = contractData.programs ?? []
-      setContract(contractData.contract ?? null)
-      setExecutive(found)
-      setPrograms(allPrograms.filter(p => p.owner === executiveId))
-      setState('ready')
-    } catch (err) {
-      if (live.current) setState(isTimeoutError(err) ? 'timeout' : 'not_found')
-    }
-  }, [executiveId])
-
-  useEffect(() => {
-    live.current = true
-    void load()
-    return () => { live.current = false }
-  }, [load])
-
-  if (state === 'loading') {
+  if (!loaded) {
     return <PageIconLoader label="Loading…" />
   }
 
-  if (state === 'timeout') {
-    return (
-      <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
-        <PageContainer>
-          <EmptyState
-            icon={AlertCircle}
-            title="This is taking longer than expected"
-            body="We couldn't load this executive in time."
-            action={{ label: 'Try again', onClick: () => void load() }}
-          />
-        </PageContainer>
-      </div>
-    )
-  }
-
-  if (state === 'not_found' || !executive) {
+  if (!executive) {
     return (
       <div style={{ background: bg, minHeight: '100vh', padding: '48px 24px' }}>
         <PageContainer>
@@ -256,7 +207,7 @@ export default function ExecutiveDetailPage() {
               )}
             </motion.div>
 
-            {active && (
+            {active ? (
               <motion.div variants={sectionVariants}>
                 <BeatHeading>The Executive</BeatHeading>
                 {/* Sub-navigation between this executive's own Programs — only renders (and only
@@ -275,7 +226,7 @@ export default function ExecutiveDetailPage() {
                         "click-to-expand" read as: the glance leads, the running detail follows).
                         Anchored so the chat rail's "initiated" reply can point back up here. */}
                     <div id="rhythm-cycle" style={{ display: 'flex', flexDirection: 'column', gap: space[4] }}>
-                      <BirdsEyeStats executiveId={executiveId} />
+                      <BirdsEyeStats executiveId={executiveId} rhythm={rhythm} />
                       <RhythmPanel progressState={rhythm} executiveId={executiveId} programTemplateId={panelProgramTemplateId} />
                     </div>
                     {/* Only P005's outreach needs this — see ContactsPrompt's own docstring. */}
@@ -295,6 +246,23 @@ export default function ExecutiveDetailPage() {
                     <ChatRail executiveId={executiveId} />
                   </div>
                 )}
+              </motion.div>
+            ) : (
+              // The gap this fixes: a mandate can name this executive's responsibility
+              // (mandateEntries above) without also switching on a Program for them — nothing
+              // upstream cross-checked the two. Before this, that drift rendered nothing at all
+              // here — a mandate bullet, then a silent void. Say so plainly instead.
+              <motion.div variants={sectionVariants}>
+                <BeatHeading>The Executive</BeatHeading>
+                <EmptyState
+                  icon={Inbox}
+                  title="Not active yet"
+                  body={
+                    mandateEntries.length > 0
+                      ? `${executive.name} is named in your mandate, but no Program has been switched on for them yet — this can happen when a mandate assigns responsibility without activating matching work. Use "Change direction" on the CEO tab to refresh your mandate.`
+                      : `${executive.name} isn't operating any Program right now.`
+                  }
+                />
               </motion.div>
             )}
 

@@ -24,9 +24,9 @@ import { useEffect, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { surf, bdr, ink, muted, blue, amber, alpha } from '@/lib/constants/colors'
 import { useQScore } from '@/features/qscore/hooks/useQScore'
+import { useExecutiveWorkspace } from '@/features/executive/hooks/useExecutiveWorkspace'
 import {
   resolveJourneyState,
-  type Contract,
   type JourneyState,
   type Strategy,
 } from '@/features/executive/types/executive.types'
@@ -121,46 +121,53 @@ export function contentFor(state: DoorState): DoorContent | null {
 
 export function ExecutiveEntryCard() {
   const { qScore, loading: qScoreLoading } = useQScore()
-  const [state, setState] = useState<DoorState | null>(null)
+  // Contract + pending actions come from the shared workspace; only strategy and the latest
+  // briefing have no shared home yet and stay self-fetched here.
+  const { contract, loaded: workspaceLoaded, disabled, actions } = useExecutiveWorkspace()
+  const [strategy, setStrategy] = useState<Strategy | null>(null)
+  const [strategyLoaded, setStrategyLoaded] = useState(false)
+  const [briefing, setBriefing] = useState<Briefing | null>(null)
 
   useEffect(() => {
-    // Wait for the real Q-Score read before deciding — otherwise a founder who HAS
-    // scored briefly sees "no_score" copy on every load, while the fetch is in flight.
-    if (qScoreLoading) return
     let live = true
     void (async () => {
       try {
-        const [sRes, cRes] = await Promise.all([fetch('/api/strategy'), fetch('/api/contracts')])
-        // 404 = the flag is off. Render nothing; the live dashboard is unaffected.
-        if (sRes.status === 404 || cRes.status === 404) return
+        const res = await fetch('/api/strategy')
+        if (res.ok && live) setStrategy((await res.json()).strategy ?? null)
+      } catch {
+        /* A secondary surface: stay hidden rather than break the dashboard. */
+      } finally {
+        if (live) setStrategyLoaded(true)
+      }
+    })()
+    return () => { live = false }
+  }, [])
 
-        const strategy: Strategy | null = sRes.ok ? (await sRes.json()).strategy ?? null : null
-        const contract: Contract | null = cRes.ok ? (await cRes.json()).contract ?? null : null
-        const hasScore = (qScore?.overall ?? 0) > 0
-        const mandate = resolveJourneyState(hasScore, strategy, contract)
+  const hasScore = (qScore?.overall ?? 0) > 0
+  const mandate = resolveJourneyState(hasScore, strategy, contract)
 
-        // Only worth asking once there is a mandate to have produced anything.
-        let briefing: Briefing | null = null
-        let pendingCount = 0
-        if (mandate === 'confirmed') {
-          const [bRes, aRes] = await Promise.all([fetch('/api/briefings'), fetch('/api/actions')])
-          if (bRes.ok) {
-            const data = await bRes.json()
-            briefing = (data.latest ?? data.briefings ?? [])[0] ?? null
-          }
-          if (aRes.ok) pendingCount = ((await aRes.json()).pending ?? []).length
+  // Only worth asking once there is a mandate to have produced anything.
+  useEffect(() => {
+    if (mandate !== 'confirmed') { setBriefing(null); return }
+    let live = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/briefings')
+        if (res.ok && live) {
+          const data = await res.json()
+          setBriefing((data.latest ?? data.briefings ?? [])[0] ?? null)
         }
-
-        if (live) setState({ mandate, briefing, pendingCount })
       } catch {
         /* A secondary surface: stay hidden rather than break the dashboard. */
       }
     })()
     return () => { live = false }
-  }, [qScoreLoading, qScore])
+  }, [mandate])
 
-  if (!state) return null
+  // 404 on either read = the flag is off. Render nothing; the live dashboard is unaffected.
+  if (qScoreLoading || !workspaceLoaded || !strategyLoaded || disabled) return null
 
+  const state: DoorState = { mandate, briefing, pendingCount: actions.pending.length }
   const content = contentFor(state)
   if (!content) return null
 

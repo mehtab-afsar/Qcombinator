@@ -7,9 +7,10 @@
  * down (a Program instead of an Executive), reusing this page's own existing master-detail
  * precedent (`?asset=`) rather than inventing a new one.
  *
- * Self-fetching, same pattern as ActionsPanel/ProgramAssetsPanel/BriefingsPanel — not a new
- * convention. Only rendered alongside ProgramTabBar, i.e. only when an executive owns more than
- * one Program (page.tsx's own call), so this never appears for today's other four executives.
+ * Self-fetches /api/assets and /api/briefings (same pattern as BriefingsPanel/ProgramAssetsPanel);
+ * pending actions come from the shared ExecutiveWorkspaceProvider instead of a third fetch of its
+ * own. Only rendered alongside ProgramTabBar, i.e. only when an executive owns more than one
+ * Program (page.tsx's own call), so this never appears for today's other four executives.
  */
 
 import { useEffect, useState } from 'react'
@@ -19,10 +20,10 @@ import { radius } from '@/features/shared/tokens'
 import { Badge } from '@/features/shared/components/Badge'
 import { programName } from '../lib/programLabel'
 import { groupByProgram } from '../lib/groupByProgram'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 import type { ProgramInstance } from '../types/executive.types'
 
 interface AssetSummary { executiveId: string | null; programTemplateId: string | null }
-interface PendingAction { executiveId?: string | null; programTemplateId?: string | null }
 interface BriefingSummary { programTemplateId: string | null; verdict: string }
 
 export function ProgramOverviewGrid({
@@ -32,25 +33,23 @@ export function ProgramOverviewGrid({
   programs: ProgramInstance[]
   onSelect: (programId: string) => void
 }) {
+  const { actions: { pending } } = useExecutiveWorkspace()
   const [assets, setAssets] = useState<AssetSummary[]>([])
-  const [pending, setPending] = useState<PendingAction[]>([])
   const [latestBriefings, setLatestBriefings] = useState<BriefingSummary[]>([])
 
   useEffect(() => {
     let live = true
     void (async () => {
       try {
-        const [assetsRes, actionsRes, briefingsRes] = await Promise.all([
+        const [assetsRes, briefingsRes] = await Promise.all([
           fetch('/api/assets'),
-          fetch('/api/actions'),
           fetch('/api/briefings'),
         ])
         if (!live) return
         if (assetsRes.ok) setAssets(((await assetsRes.json()).assets ?? []) as AssetSummary[])
-        if (actionsRes.ok) setPending(((await actionsRes.json()).pending ?? []) as PendingAction[])
         if (briefingsRes.ok) setLatestBriefings(((await briefingsRes.json()).latest ?? []) as BriefingSummary[])
       } catch {
-        if (live) { setAssets([]); setPending([]); setLatestBriefings([]) }
+        if (live) { setAssets([]); setLatestBriefings([]) }
       }
     })()
     return () => { live = false }

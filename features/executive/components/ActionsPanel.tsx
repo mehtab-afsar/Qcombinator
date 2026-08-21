@@ -16,12 +16,12 @@
  * everything, so a stale tab cannot push work through.
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { bdr, muted, red, purple, alpha } from '@/lib/constants/colors'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { Badge } from '@/features/shared/components/Badge'
-import { useCycleLive } from '../lib/useCycleLive'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 import { ActionCard, ActionStatusRow } from './ActionListItem'
 
 export interface PendingAction {
@@ -70,36 +70,20 @@ export interface ActionSummary {
 export function ActionsPanel({
   executiveId, programTemplateId,
 }: { executiveId?: string; programTemplateId?: string } = {}) {
-  const [pending, setPending] = useState<PendingAction[]>([])
-  const [all, setAll] = useState<ActionSummary[]>([])
-  const [loaded, setLoaded] = useState(false)
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   // Gap A — a cycle finishing is exactly when a new pending approval (or a completed internal
   // action) can exist server-side; without this a founder sees nothing appear here until a
-  // manual reload. See BriefingsPanel's identical use of this hook for the full reasoning.
-  const { generation } = useCycleLive()
+  // manual reload. The shared workspace already re-fetches actions on that transition (same
+  // useCycleLive signal this panel used to poll for itself) — see BriefingsPanel for the one
+  // remaining independent use of that hook.
+  const { actions, actionsLoaded, refreshActions } = useExecutiveWorkspace()
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/actions')
-      if (!res.ok) return // 404 = flag off; leave the last good state rather than flash an error
-      const data = await res.json()
-      const pendingAll: PendingAction[] = data.pending ?? []
-      const summaryAll: ActionSummary[] = data.all ?? []
-      const matches = (a: { executiveId?: string | null; programTemplateId?: string | null }) =>
-        (!executiveId || a.executiveId === executiveId)
-        && (!programTemplateId || a.programTemplateId === programTemplateId)
-      setPending(pendingAll.filter(matches))
-      setAll(summaryAll.filter(matches))
-    } catch {
-      /* transient — the next load retries */
-    } finally {
-      setLoaded(true)
-    }
-  }, [executiveId, programTemplateId])
-
-  useEffect(() => { void load() }, [load, generation])
+  const matches = (a: { executiveId?: string | null; programTemplateId?: string | null }) =>
+    (!executiveId || a.executiveId === executiveId)
+    && (!programTemplateId || a.programTemplateId === programTemplateId)
+  const pending = actions.pending.filter(matches)
+  const all = actions.all.filter(matches)
 
   async function decide(entry: PendingAction, decision: 'approve' | 'decline') {
     setBusyId(entry.id)
@@ -114,7 +98,7 @@ export function ActionsPanel({
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Could not record your decision.'); return }
-      await load()
+      await refreshActions()
     } catch {
       setError('Could not reach the server. Try again.')
     } finally {
@@ -122,7 +106,7 @@ export function ActionsPanel({
     }
   }
 
-  if (!loaded) return null
+  if (!actionsLoaded) return null
 
   if (pending.length === 0) {
     // FU-009: this used to return null the moment nothing was pending, which hid the 4 internal

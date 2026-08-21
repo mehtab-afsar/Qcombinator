@@ -9,7 +9,8 @@ import { FONT_SERIF } from '@/features/onboarding/theme'
 import { ease } from '@/features/shared/tokens'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { CompassDoodle } from '@/features/onboarding/components/doodles/CompassDoodle'
-import type { Contract, ExecutiveSummary } from '../types/executive.types'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
+import type { Contract } from '../types/executive.types'
 
 const containerVariants = { hidden: {}, show: { transition: { staggerChildren: 0.15 } } }
 const itemVariants = {
@@ -66,21 +67,7 @@ export function MandateCard({
   onChangeDirection?: () => void
   busy?: boolean
 }) {
-  const [executives, setExecutives] = useState<ExecutiveSummary[]>([])
-
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const res = await fetch('/api/executives')
-        if (res.ok && live) setExecutives((await res.json()).executives ?? [])
-      } catch {
-        /* Falls back to the raw Registry id below — still true, just less readable. */
-      }
-    })()
-    return () => { live = false }
-  }, [])
-
+  const { executives } = useExecutiveWorkspace()
   const nameById = new Map(executives.map(e => [e.id, e.name]))
   const [expanded, setExpanded] = useState(false)
 

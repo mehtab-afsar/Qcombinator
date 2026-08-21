@@ -198,10 +198,15 @@ describe('client boundary', () => {
     // CLAUDE.md §2: the frontend renders state; it never implements executive
     // reasoning.
     const page = stripComments(readFileSync('app/founder/executive/page.tsx', 'utf8'))
+    const workspace = stripComments(readFileSync('features/executive/hooks/useExecutiveWorkspace.tsx', 'utf8'))
     expect(page).not.toMatch(/from '@\/lib\/(mandate|registry|prompts)/)
-    // Prefix-tolerant: fetchWithTimeout('/api/contracts') is still a fetch of that
+    // Prefix-tolerant: fetchWithTimeout('/api/strategy') is still a fetch of that
     // endpoint, just wrapped so a hung request can't spin the page forever.
-    expect(page).toMatch(/fetch(WithTimeout)?\(['"]\/api\/contracts['"]/)
+    expect(page).toMatch(/fetch(WithTimeout)?\(['"]\/api\/strategy['"]/)
+    // The contract read itself now lives in the shared ExecutiveWorkspaceProvider (one fetch,
+    // shared across every executive tab) rather than this page fetching it directly — still an
+    // API call, not local reasoning, just made once instead of on every page.
+    expect(workspace).toMatch(/fetch\(['"]\/api\/contracts['"]\)/)
   })
 
   it('CommandView and ScoreAnchor stay presentational too', () => {
@@ -249,8 +254,12 @@ describe('the mandate card shows who takes it on, by real name', () => {
   it('reads names from the Registry via the API, not a second hardcoded list', () => {
     // 'growth' the Registry id vs 'Patel' the founder-facing name — a hardcoded
     // {growth: 'Growth'} map would be readable but wrong. One Registry, read the
-    // same way every other panel on this page already does.
-    expect(card).toContain("fetch('/api/executives')")
+    // same way every other panel on this page already does. The fetch itself now lives in the
+    // shared ExecutiveWorkspaceProvider (one call, shared across every consumer) rather than
+    // this card fetching it independently — MandateCard reads the result via that hook.
+    const workspace = stripComments(readFileSync('features/executive/hooks/useExecutiveWorkspace.tsx', 'utf8'))
+    expect(card).toContain('useExecutiveWorkspace')
+    expect(workspace).toContain("fetch('/api/executives')")
     expect(card).not.toMatch(/growth:\s*['"]/i) // no id->label map living here
   })
 

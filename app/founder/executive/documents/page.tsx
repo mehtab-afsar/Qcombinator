@@ -14,8 +14,9 @@
  * mounted here orients for free: its active-route logic already falls through to highlighting
  * the CEO tab for any /founder/executive/* path outside the 5 known tab routes.
  *
- * No new API route — composes three existing reads (/api/executives, /api/assets, /api/briefings),
- * the same client-side-join pattern ExecutiveRoster already uses for small fetched lists.
+ * No new API route — composes /api/assets and /api/briefings (executives come from the shared
+ * ExecutiveWorkspaceProvider), the same client-side-join pattern ExecutiveRoster already uses for
+ * small fetched lists.
  */
 
 import { useEffect, useState } from 'react'
@@ -31,44 +32,49 @@ import { ExecutiveTabBar } from '@/features/executive/components/ExecutiveTabBar
 import { ArtifactCard, type ArtifactCardData } from '@/features/executive/components/ArtifactCard'
 import { SHORT_LABEL, EXECUTIVE_BADGE_VARIANT } from '@/features/executive/lib/executiveLabels'
 import { Badge } from '@/features/shared/components/Badge'
+import { useExecutiveWorkspace } from '@/features/executive/hooks/useExecutiveWorkspace'
 import type { ExecutiveSummary } from '@/features/executive/types/executive.types'
 
 interface Briefing { id: string; executiveId: string | null; verdict: string }
 
 export default function DocumentsHubPage() {
-  const [executives, setExecutives] = useState<ExecutiveSummary[] | null>(null)
+  const { executives, loaded } = useExecutiveWorkspace()
   const [assets, setAssets] = useState<ArtifactCardData[]>([])
   const [briefings, setBriefings] = useState<Briefing[]>([])
+  const [assetsLoaded, setAssetsLoaded] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [collapsedInitialized, setCollapsedInitialized] = useState(false)
 
   useEffect(() => {
     let live = true
     void (async () => {
       try {
-        const [execRes, assetsRes, briefRes] = await Promise.all([
-          fetch('/api/executives'),
-          fetch('/api/assets'),
-          fetch('/api/briefings'),
-        ])
+        const [assetsRes, briefRes] = await Promise.all([fetch('/api/assets'), fetch('/api/briefings')])
         if (!live) return
-        const execs: ExecutiveSummary[] = execRes.ok ? (await execRes.json()).executives ?? [] : []
         const assetList: ArtifactCardData[] = assetsRes.ok ? (await assetsRes.json()).assets ?? [] : []
         const briefList: Briefing[] = briefRes.ok ? (await briefRes.json()).briefings ?? [] : []
         if (!live) return
-        setExecutives(execs)
         setAssets(assetList)
         setBriefings(briefList)
-        // Default: collapsed only for an executive with no documents at all — never hidden,
-        // just quiet, matching ExecutiveCard's idle treatment.
-        setCollapsed(new Set(execs.filter(e => !assetList.some(a => a.executiveId === e.id)).map(e => e.id)))
       } catch {
-        if (live) setExecutives([])
+        /* leave the last good state */
+      } finally {
+        if (live) setAssetsLoaded(true)
       }
     })()
     return () => { live = false }
   }, [])
 
-  if (executives === null) return <PageSpinner label="Loading your documents…" />
+  // Default: collapsed only for an executive with no documents at all — never hidden, just
+  // quiet, matching ExecutiveCard's idle treatment. Runs once, the first time both executives and
+  // assets are known, rather than as a dependent effect that would fight a founder's own toggle.
+  useEffect(() => {
+    if (collapsedInitialized || !loaded || !assetsLoaded || executives.length === 0) return
+    setCollapsed(new Set(executives.filter(e => !assets.some(a => a.executiveId === e.id)).map(e => e.id)))
+    setCollapsedInitialized(true)
+  }, [collapsedInitialized, loaded, assetsLoaded, executives, assets])
+
+  if (!loaded || !assetsLoaded) return <PageSpinner label="Loading your documents…" />
 
   const toggle = (id: string) => setCollapsed(prev => {
     const next = new Set(prev)
