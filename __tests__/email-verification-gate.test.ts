@@ -55,7 +55,9 @@ describe('middleware blocks an unconfirmed investor the same way (previously it 
 
   it('the investor branch redirects to /investor/verify-email when unconfirmed', () => {
     const i = src.indexOf("pathname === '/investor' || pathname.startsWith('/investor/')")
-    const gate = src.slice(i, i + 700)
+    // Widened from 700: the branch now also handles a timed-out profile lookup (middleware.ts's
+    // withTimeout) before reaching the confirmation check, pushing it a bit further from the anchor.
+    const gate = src.slice(i, i + 900)
     expect(gate).toMatch(/if\s*\(\s*!isEmailConfirmed\(user\)\s*\)/)
     expect(gate).toContain("'/investor/verify-email'")
   })

@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { isEmailConfirmed } from '@/lib/auth/email-confirmed'
+import { log } from '@/lib/logger'
 
 // ─── Sliding-window rate limiter (Upstash Redis, cross-instance) ─────────────
 const RATE_LIMIT_RULES: Record<string, { requests: number; window: string }> = {
@@ -109,6 +110,31 @@ function isProtectedRoute(pathname: string): boolean {
   return pathname.startsWith('/founder/') || pathname.startsWith('/investor/') || pathname === '/feed'
 }
 
+// ─── Bounded network calls — one slow dependency must not freeze every request ────────────────
+//
+// Middleware runs in front of nearly every request (see `matcher` below). Each of the four
+// network calls below used to have no timeout of its own — when Supabase or Upstash had a slow
+// moment, the request just hung until Vercel's own platform limit killed it
+// (MIDDLEWARE_INVOCATION_TIMEOUT), taking down every request site-wide at once, not just the
+// affected one. A TIMED_OUT sentinel (not a fabricated fallback value) lets each call site tell
+// "timed out, we don't actually know" apart from "genuinely resolved to no session" — that
+// distinction is what lets a real founder avoid being bounced to /login over a one-off blip,
+// while a genuine "not logged in" still redirects exactly as before. Scoped to hangs only: a
+// call that quickly rejects/errors is a different, separately-reviewable problem.
+const NETWORK_TIMEOUT_MS = 5_000
+const TIMED_OUT = Symbol('timed-out')
+
+// PromiseLike, not Promise — Supabase's query builder is thenable but not a true Promise
+// instance (no .catch/.finally), so it fails a strict Promise<T> parameter type even though
+// `await` and Promise.race both accept it fine at runtime.
+async function withTimeout<T>(promise: PromiseLike<T>, ms = NETWORK_TIMEOUT_MS): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout>
+  const timeout = new Promise<typeof TIMED_OUT>(resolve => { timer = setTimeout(() => resolve(TIMED_OUT), ms) })
+  const result = await Promise.race([promise, timeout])
+  clearTimeout(timer!)
+  return result
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
@@ -124,23 +150,29 @@ export async function middleware(request: NextRequest) {
       const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
         ?? request.headers.get('x-real-ip')
         ?? 'unknown'
-      const rlResult = await limiter.limit(`${ip}:${pathname}`)
-      const resetSecs = Math.ceil((rlResult.reset - Date.now()) / 1000)
-      if (!rlResult.success) {
-        return NextResponse.json(
-          { error: 'Too many requests — please wait a moment and try again.' },
-          { status: 429, headers: {
-            'Retry-After':           String(Math.max(resetSecs, 1)),
-            'X-RateLimit-Limit':     String(rateMatch.rule.requests),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
-          }}
-        )
-      }
-      rlHeaders = {
-        'X-RateLimit-Limit':     String(rateMatch.rule.requests),
-        'X-RateLimit-Remaining': String(rlResult.remaining),
-        'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
+      const rlResult = await withTimeout(limiter.limit(`${ip}:${pathname}`))
+      if (rlResult === TIMED_OUT) {
+        // Same graceful degradation as Upstash not being configured at all — skip throttling
+        // for this one request rather than hang the whole site on a slow Redis call.
+        log.warn('rate limit check timed out — allowing the request through', { route: pathname })
+      } else {
+        const resetSecs = Math.ceil((rlResult.reset - Date.now()) / 1000)
+        if (!rlResult.success) {
+          return NextResponse.json(
+            { error: 'Too many requests — please wait a moment and try again.' },
+            { status: 429, headers: {
+              'Retry-After':           String(Math.max(resetSecs, 1)),
+              'X-RateLimit-Limit':     String(rateMatch.rule.requests),
+              'X-RateLimit-Remaining': '0',
+              'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
+            }}
+          )
+        }
+        rlHeaders = {
+          'X-RateLimit-Limit':     String(rateMatch.rule.requests),
+          'X-RateLimit-Remaining': String(rlResult.remaining),
+          'X-RateLimit-Reset':     String(Math.ceil(rlResult.reset / 1000)),
+        }
       }
     }
   }
@@ -206,9 +238,13 @@ export async function middleware(request: NextRequest) {
   })
 
   // getUser() is preferred over getSession() — validates the JWT against Supabase
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const userResult = await withTimeout(supabase.auth.getUser())
+  const authTimedOut = userResult === TIMED_OUT
+  if (authTimedOut) log.warn('auth check timed out in middleware', { route: pathname })
+  // On a timeout we don't know who this is — never treat that the same as a genuine "no
+  // session" (that would bounce a real founder to /login over a one-off blip). `user` is only
+  // null here for a genuine unauthenticated request; authTimedOut carries the "unknown" case.
+  const user = authTimedOut ? null : userResult.data.user
 
   // For API routes: session has been refreshed (cookies updated), let the route
   // handle its own auth — do NOT redirect
@@ -219,7 +255,7 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  if (!user && isProtectedRoute(pathname)) {
+  if (!user && !authTimedOut && isProtectedRoute(pathname)) {
     // Redirect to login, preserving the intended destination for post-login redirect
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
@@ -247,50 +283,59 @@ export async function middleware(request: NextRequest) {
     if (pathname === '/founder' || pathname.startsWith('/founder/')) {
       const cachedRole = request.cookies.get('role_verified')?.value
       if (cachedRole !== 'founder' && !CONFIRMATION_GATE_EXEMPT.includes(pathname)) {
-        const { data: fp } = await supabase
-          .from('founder_profiles')
-          .select('user_id, onboarding_completed')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if (!fp) {
-          // No founder profile — send them to create one, regardless of whether they also
-          // have an investor profile (dual-role is allowed; it isn't assumed).
-          return NextResponse.redirect(new URL('/founder/onboarding', request.url))
+        const fpResult = await withTimeout(
+          supabase.from('founder_profiles').select('user_id, onboarding_completed').eq('user_id', user.id).maybeSingle()
+        )
+        if (fpResult === TIMED_OUT) {
+          // Don't guess — skip the gate for this one request rather than wrongly bounce a real,
+          // fully-set-up founder to onboarding. Not setting role_verified means the very next
+          // request re-checks once the dependency recovers, instead of caching a skipped check.
+          log.warn('founder_profiles lookup timed out in middleware', { userId: user.id })
+        } else {
+          const { data: fp } = fpResult
+          if (!fp) {
+            // No founder profile — send them to create one, regardless of whether they also
+            // have an investor profile (dual-role is allowed; it isn't assumed).
+            return NextResponse.redirect(new URL('/founder/onboarding', request.url))
+          }
+          if (!fp.onboarding_completed) {
+            // A row exists but onboarding was never finished — e.g. a Google sign-up's stub
+            // row (created on first OAuth callback so they aren't orphaned mid-flow). Row
+            // presence alone used to be treated as "done," which let an incomplete founder
+            // straight into the dashboard on any later visit. Existence is not completion.
+            return NextResponse.redirect(new URL('/founder/onboarding', request.url))
+          }
+          if (!isEmailConfirmed(user)) {
+            // A Google sign-up never lands here — Supabase marks it confirmed at creation, since
+            // Google already verified the address. Only an unconfirmed email/password sign-up
+            // is blocked.
+            return NextResponse.redirect(new URL('/founder/verify-email', request.url))
+          }
+          response.cookies.set('role_verified', 'founder', {
+            maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
+          })
         }
-        if (!fp.onboarding_completed) {
-          // A row exists but onboarding was never finished — e.g. a Google sign-up's stub
-          // row (created on first OAuth callback so they aren't orphaned mid-flow). Row
-          // presence alone used to be treated as "done," which let an incomplete founder
-          // straight into the dashboard on any later visit. Existence is not completion.
-          return NextResponse.redirect(new URL('/founder/onboarding', request.url))
-        }
-        if (!isEmailConfirmed(user)) {
-          // A Google sign-up never lands here — Supabase marks it confirmed at creation, since
-          // Google already verified the address. Only an unconfirmed email/password sign-up
-          // is blocked.
-          return NextResponse.redirect(new URL('/founder/verify-email', request.url))
-        }
-        response.cookies.set('role_verified', 'founder', {
-          maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
-        })
       }
     } else if (pathname === '/investor' || pathname.startsWith('/investor/')) {
       const cachedRole = request.cookies.get('role_verified')?.value
       if (cachedRole !== 'investor' && !CONFIRMATION_GATE_EXEMPT.includes(pathname)) {
-        const { data: ip } = await supabase
-          .from('investor_profiles')
-          .select('user_id')
-          .eq('user_id', user.id)
-          .maybeSingle()
-        if (!ip) {
-          return NextResponse.redirect(new URL('/investor/onboarding', request.url))
+        const ipResult = await withTimeout(
+          supabase.from('investor_profiles').select('user_id').eq('user_id', user.id).maybeSingle()
+        )
+        if (ipResult === TIMED_OUT) {
+          log.warn('investor_profiles lookup timed out in middleware', { userId: user.id })
+        } else {
+          const { data: ip } = ipResult
+          if (!ip) {
+            return NextResponse.redirect(new URL('/investor/onboarding', request.url))
+          }
+          if (!isEmailConfirmed(user)) {
+            return NextResponse.redirect(new URL('/investor/verify-email', request.url))
+          }
+          response.cookies.set('role_verified', 'investor', {
+            maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
+          })
         }
-        if (!isEmailConfirmed(user)) {
-          return NextResponse.redirect(new URL('/investor/verify-email', request.url))
-        }
-        response.cookies.set('role_verified', 'investor', {
-          maxAge: 300, httpOnly: true, sameSite: 'strict', path: '/',
-        })
       }
     }
   }
