@@ -90,6 +90,10 @@ export function renderCompanyContext(
   // any other Action. Rendered plainly like everything else here: this is real PII, but it's
   // still DATA, not instructions — the same fencing discipline as the rest of this layer.
   field('Your Contacts', context.founderContacts)
+  // Narrowly populated too (leadsContextFor), and for the same reason absent from every Asset and
+  // Briefing. Unlike Your Contacts above, this deliberately carries no addresses — see the field's
+  // own docstring.
+  field('Your Lead Pipeline', context.pipelineLeads)
 
   field('New Information This Cycle', context.newInformation)
 

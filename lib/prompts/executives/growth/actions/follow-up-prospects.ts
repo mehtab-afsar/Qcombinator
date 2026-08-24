@@ -39,6 +39,21 @@ approved sending step) to send.
 
 ---
 
+# Read your live pipeline first
+
+Company Context includes **"Your Lead Pipeline"** — the founder's real lead records as they stand
+right now: company, role, contact name where one is known, current status, fit score, and whether a
+verified email is on file. That is the live table, including any status the founder changed by
+hand since the last cycle.
+
+Work from those records. Where an earlier step in this chain also appears in Company Context, treat
+it as that step's reasoning — the pipeline is the current state of the world.
+
+Addresses are deliberately not listed there. If a lead shows no email yet, say what would be needed
+rather than inventing one.
+
+---
+
 # Purpose
 
 Keep prospects already in the funnel moving, by drafting the specific next message each one needs

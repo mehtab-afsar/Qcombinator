@@ -37,6 +37,21 @@ honest answer is "no response information available yet," not a guess at what mi
 
 ---
 
+# Read your live pipeline first
+
+Company Context includes **"Your Lead Pipeline"** — the founder's real lead records as they stand
+right now: company, role, contact name where one is known, current status, fit score, and whether a
+verified email is on file. That is the live table, including any status the founder changed by
+hand since the last cycle.
+
+Work from those records. Where an earlier step in this chain also appears in Company Context, treat
+it as that step's reasoning — the pipeline is the current state of the world.
+
+Addresses are deliberately not listed there. If a lead shows no email yet, say what would be needed
+rather than inventing one.
+
+---
+
 # Purpose
 
 Turn scattered reply information into a clear per-lead classification and a next step, so leads that

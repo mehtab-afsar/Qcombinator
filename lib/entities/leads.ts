@@ -69,6 +69,78 @@ export function parseModelLeads(payload: unknown): ModelLead[] | null {
   return parsed.data.leads
 }
 
+/** How many leads reach a prompt. Leads are unbounded — a founder with 400 must not blow out
+ *  every prompt in the Program — and the rendered text says when it truncated, so the model
+ *  knows it is seeing a top slice rather than the whole pipeline. */
+const CONTEXT_LIMIT = 40
+
+/**
+ * The founder's current pipeline, as Company Context — the leads table read BACK, which until
+ * now it never was. Slice 1 wrote rows; every downstream step still reasoned from the prior
+ * step's prose summary, so it could not see a lead's real status, score, or whether enrichment
+ * had since found a person there.
+ *
+ * ⚠️ NEVER RENDERS AN EMAIL ADDRESS, deliberately — only whether one is on file. The single
+ * Action that legitimately needs real addresses (`generate_personalized_outreach`) gets them from
+ * `founder_contacts`, the founder-vouched path (`lib/contacts/context.ts`). "This lead has an
+ * email on file" is all pipeline reasoning needs; spreading addresses through every prompt in the
+ * Program is not, and every prompt is a place PII could come to rest.
+ *
+ * Gated to Actions of lead-producing Programs by `leadsContextFor` (lib/rhythm/run.ts) — never
+ * Assets or Briefings, whose output persists as documents. Same carve-out, same reason, as
+ * `founderContactsContextFor`.
+ *
+ * Returns null — never throws — on any failure; the caller wraps in `.catch(() => null)` anyway.
+ */
+export async function getLeadsContext(
+  admin: SupabaseClient,
+  founderId: string,
+): Promise<string | null> {
+  const { data, error } = await admin
+    .from('founder_leads')
+    .select('company, title, contact_name, email_status, score, status')
+    .eq('founder_id', founderId)
+    .order('score', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(CONTEXT_LIMIT + 1)
+
+  if (error || !data || data.length === 0) return null
+
+  const rows = data as Array<{
+    company: string
+    title: string | null
+    contact_name: string | null
+    email_status: string
+    score: number | null
+    status: string
+  }>
+
+  const truncated = rows.length > CONTEXT_LIMIT
+  const shown = rows.slice(0, CONTEXT_LIMIT)
+
+  const lines = shown.map(r => {
+    const who = [r.contact_name, r.title].filter(Boolean).join(', ')
+    return [
+      `- ${r.company}`,
+      who ? ` — ${who}` : '',
+      ` · ${r.status}`,
+      r.score != null ? ` · fit ${r.score}` : '',
+      // Whether, never what.
+      r.email_status === 'verified' ? ' · verified email on file' : ' · no email yet',
+    ].join('')
+  })
+
+  return [
+    'This founder\'s current lead pipeline. Reason from these real records rather than from any',
+    'earlier summary — this is the live state, including any status the founder has changed by',
+    'hand. Email addresses are deliberately not listed here; outreach draws recipients from the',
+    'founder\'s own contact list, not from this pipeline.',
+    truncated ? `Showing the top ${CONTEXT_LIMIT} by fit score; there are more.` : '',
+    '',
+    ...lines,
+  ].filter(Boolean).join('\n')
+}
+
 export interface LeadProvenance {
   programId?: string | null
   executionId?: string | null

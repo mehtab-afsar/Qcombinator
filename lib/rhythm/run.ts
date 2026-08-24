@@ -27,6 +27,7 @@ export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
 import { AlreadyExecutedError, latestPerAction } from '@/lib/actions/log'
 import { getFounderContactsContext } from '@/lib/contacts/context'
+import { getLeadsContext } from '@/lib/entities/leads'
 import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { generateAssetContent } from './judge'
@@ -135,6 +136,35 @@ export async function founderContactsContextFor(
 
   const text = await getFounderContactsContext(admin, founderId).catch(() => null)
   return text ? { founderContacts: text } : {}
+}
+
+/**
+ * The founder's live lead pipeline, for the Actions of a Program that actually produces leads.
+ *
+ * ⚠️ THE GATE IS REGISTRY-DERIVED AND SELF-MAINTAINING: "if this Program declares a lead-producing
+ * Action, its Actions may read leads." No hardcoded id list to fall out of date — a future Program
+ * that declares `produces: 'lead'` inherits this automatically, and one that stops producing leads
+ * loses it automatically.
+ *
+ * Same narrow shape and same carve-out as `founderContactsContextFor` above — Actions only, never
+ * an Asset or a Briefing, because those persist as documents and would become a second silent copy
+ * of personal data with no link back to the row. `getLeadsContext` additionally renders no email
+ * addresses at all (see its own docstring).
+ *
+ * This is what lets a chained Action reason from the live table rather than the previous step's
+ * already-stale prose summary — `dependencyContextFor` above remains, for genuinely narrative
+ * handoffs.
+ */
+export async function leadsContextFor(
+  admin: SupabaseClient,
+  founderId: string,
+  actionId: string,
+): Promise<Pick<CompanyContext, 'pipelineLeads'>> {
+  const program = getProgram(getAction(actionId).program)
+  if (!program.actions.some(id => getAction(id).produces === 'lead')) return {}
+
+  const text = await getLeadsContext(admin, founderId).catch(() => null)
+  return text ? { pipelineLeads: text } : {}
 }
 
 /**
@@ -285,13 +315,16 @@ export async function runNextStep(
           // A no-op spread for every Action except the Gmail-send ones (see
           // founderContactsContextFor's own docstring for why this stays out of baseContext).
           const contacts = await founderContactsContextFor(admin, run.founderId, nextActionId)
+          // A no-op spread for every Action outside a lead-producing Program — this is what lets
+          // the SDR's later steps read the live pipeline instead of the prior step's prose.
+          const leads = await leadsContextFor(admin, run.founderId, nextActionId)
           await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
             executionId: run.id,
             activePrograms: contract.activePrograms,
-            context: { ...baseContext, ...chained, ...contacts },
+            context: { ...baseContext, ...chained, ...contacts, ...leads },
           })
         } catch (err) {
           if (err instanceof AlreadyExecutedError) {

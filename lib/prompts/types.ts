@@ -115,6 +115,22 @@ export interface CompanyContext {
    * never moves the score, and revenue landing here never will either (ADR-005).
    */
   stripeMetrics?: string
+  /**
+   * The founder's current lead pipeline, read back from `founder_leads`
+   * (`lib/entities/leads.ts`'s `getLeadsContext`). Populated NARROWLY, by
+   * `lib/rhythm/run.ts`'s `leadsContextFor`: only for Actions of a Program that declares a
+   * lead-producing Action, never for an Asset or a Briefing — the same carve-out, and the same
+   * reason, as `founderContacts` above.
+   *
+   * ⚠️ CARRIES NO EMAIL ADDRESSES, only whether one is on file. Recipients come from
+   * `founderContacts`, the founder-vouched path; a pipeline is for reasoning about who to work
+   * next, and every prompt it reaches is a place an address could come to rest.
+   *
+   * This is what makes chained Actions read the live table instead of the previous step's
+   * already-stale prose summary (`dependencyResult`, which remains for genuinely narrative
+   * handoffs).
+   */
+  pipelineLeads?: string
 }
 
 export interface ComposeInput {

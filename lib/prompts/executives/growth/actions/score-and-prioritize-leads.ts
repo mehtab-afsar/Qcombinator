@@ -40,6 +40,21 @@ pass over the target list.
 
 ---
 
+# Then read the pipeline you already have
+
+Company Context also includes **"Your Lead Pipeline"** — the leads already on the founder's real
+list, with their current status, fit score, and whether a verified email has since been found.
+
+**Update that ranking; do not rebuild it from zero.** A lead you ranked last cycle should keep its
+place unless the new account briefs actually change the picture, and a lead the founder has moved
+to contacted, replied or qualified has moved for a reason — respect it rather than resetting it.
+Re-scoring everything from scratch every cycle makes the ranking noise rather than judgement.
+
+Include an existing lead in your output block when its score or reasoning genuinely changes, and
+when adding an account that is not on the list yet. Leave the settled ones alone.
+
+---
+
 # Purpose
 
 Take the accounts identified through find_target_companies, find_decision_makers and
