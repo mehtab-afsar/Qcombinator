@@ -166,9 +166,30 @@ export interface ActionDef {
   irreversible: boolean
   /** Only set when the Action reaches an external system. Implies `irreversible`. */
   connector?: ConnectorId
+  /**
+   * The real-world entity this Action's structured output becomes (docs/AGI_ACTIONS_PRD.md,
+   * spine slice 1). Optional and rare: the vast majority of Actions produce analysis, and their
+   * output is prose recorded on `action_log`, exactly as before.
+   *
+   * When set, `lib/actions/generate.ts` hands the model's fenced JSON to the matching writer in
+   * `lib/entities/**` and records how many rows it produced. The Action's prompt must actually
+   * emit that JSON shape — a mismatch writes zero rows and logs, it never fails the Action.
+   *
+   * ⚠️ Writing an entity is NOT a Connector side effect and does not imply `irreversible`. These
+   * rows are internal, founder-owned and editable; ADR-004's approval boundary is about things
+   * that leave the building, which this is not.
+   */
+  produces?: EntityKind
   /** Action Instructions — layer 3 of the Composer (ADR-012). */
   instructionsRef: string
 }
+
+/**
+ * Real-world entities an Action can write. Exactly one for now, on purpose — a second kind gets
+ * added when a second Action genuinely needs it, not in anticipation (CLAUDE.md §7, no
+ * speculative abstraction).
+ */
+export type EntityKind = 'lead'
 
 // ─── Errors ───────────────────────────────────────────────────────────────────
 //

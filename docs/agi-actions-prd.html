@@ -1,0 +1,772 @@
+<title>AGI Actions PRD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Source+Sans+3:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ── Light palette (Edge Alpha's own system) ─────────────────── */
+  :root {
+    --ground:   #F9F7F2;
+    --surface:  #F0EDE6;
+    --sunken:   #EDE9E0;
+    --border:   #E2DDD5;
+    --rule:     #D6D0C5;
+    --ink:      #18160F;
+    --ink-soft: #3D3A31;
+    --muted:    #8A867C;
+
+    --accent:   #2563EB;
+    --warn:     #D97706;
+    --crit:     #DC2626;
+    --good:     #16A34A;
+
+    --accent-wash: rgba(37, 99, 235, 0.07);
+    --warn-wash:   rgba(217, 119, 6, 0.08);
+    --crit-wash:   rgba(220, 38, 38, 0.07);
+    --good-wash:   rgba(22, 163, 74, 0.08);
+
+    --shadow: 0 1px 2px rgba(24, 22, 15, 0.04), 0 8px 24px rgba(24, 22, 15, 0.05);
+
+    --measure: 68ch;
+    --step--1: 0.845rem;
+    --step-0:  1.0rem;
+    --step-1:  1.16rem;
+    --step-2:  1.42rem;
+    --step-3:  1.85rem;
+    --step-4:  2.45rem;
+    --step-5:  3.4rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:   #14130F;
+      --surface:  #1E1C17;
+      --sunken:   #191713;
+      --border:   #332F27;
+      --rule:     #3D3931;
+      --ink:      #F2EFE8;
+      --ink-soft: #CFCabd;
+      --muted:    #928D82;
+
+      --accent:   #7CA0F7;
+      --warn:     #E9A23B;
+      --crit:     #F07575;
+      --good:     #5BD98A;
+
+      --accent-wash: rgba(124, 160, 247, 0.10);
+      --warn-wash:   rgba(233, 162, 59, 0.10);
+      --crit-wash:   rgba(240, 117, 117, 0.09);
+      --good-wash:   rgba(91, 217, 138, 0.10);
+
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:   #14130F;
+    --surface:  #1E1C17;
+    --sunken:   #191713;
+    --border:   #332F27;
+    --rule:     #3D3931;
+    --ink:      #F2EFE8;
+    --ink-soft: #CFCabd;
+    --muted:    #928D82;
+
+    --accent:   #7CA0F7;
+    --warn:     #E9A23B;
+    --crit:     #F07575;
+    --good:     #5BD98A;
+
+    --accent-wash: rgba(124, 160, 247, 0.10);
+    --warn-wash:   rgba(233, 162, 59, 0.10);
+    --crit-wash:   rgba(240, 117, 117, 0.09);
+    --good-wash:   rgba(91, 217, 138, 0.10);
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-size: var(--step-0);
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    padding: clamp(2rem, 5vw, 4.5rem) clamp(1.15rem, 5vw, 2rem) 6rem;
+  }
+
+  .page { max-width: var(--measure); margin: 0 auto; }
+
+  /* ── Masthead ────────────────────────────────────────────────── */
+  .masthead { display: flex; flex-direction: column; gap: 1.15rem; padding-bottom: 2.25rem; border-bottom: 1px solid var(--rule); }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: clamp(var(--step-4), 7vw, var(--step-5));
+    font-weight: 500;
+    line-height: 1.04;
+    letter-spacing: -0.022em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .standfirst {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: var(--step-2);
+    font-style: italic;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .status {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* ── Sections ────────────────────────────────────────────────── */
+  section { padding-top: 3.25rem; }
+
+  h2 {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: var(--step-3);
+    font-weight: 500;
+    line-height: 1.16;
+    letter-spacing: -0.014em;
+    text-wrap: balance;
+    margin: 0 0 0.35rem;
+  }
+
+  h3 {
+    font-size: var(--step-1);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+    margin: 2rem 0 0.4rem;
+  }
+
+  .kicker {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.7rem;
+  }
+
+  p { margin: 0 0 1rem; }
+  p:last-child { margin-bottom: 0; }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  strong { font-weight: 600; color: var(--ink); }
+  em { font-style: italic; }
+
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.855em;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.08em 0.34em;
+    color: var(--ink-soft);
+    overflow-wrap: anywhere;
+  }
+
+  ul { margin: 0 0 1rem; padding-left: 1.15rem; }
+  li { margin-bottom: 0.5rem; }
+  li:last-child { margin-bottom: 0; }
+  li::marker { color: var(--muted); }
+
+  /* ── The thesis number ───────────────────────────────────────── */
+  .thesis {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 1.6rem;
+    align-items: center;
+    margin: 2rem 0;
+    padding: 1.75rem 1.9rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+
+  .thesis .figure {
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: clamp(3.2rem, 11vw, 4.6rem);
+    font-weight: 600;
+    line-height: 0.9;
+    letter-spacing: -0.035em;
+    color: var(--crit);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .thesis .figure sub {
+    display: block;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 0.55rem;
+  }
+
+  .thesis .say { font-size: var(--step-1); line-height: 1.45; color: var(--ink); text-wrap: pretty; }
+
+  @media (max-width: 560px) {
+    .thesis { grid-template-columns: 1fr; gap: 1.1rem; }
+  }
+
+  /* ── Quote ───────────────────────────────────────────────────── */
+  blockquote {
+    margin: 1.5rem 0;
+    padding: 0 0 0 1.35rem;
+    border-left: 2px solid var(--rule);
+    font-family: Newsreader, ui-serif, Georgia, serif;
+    font-size: var(--step-1);
+    font-style: italic;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  blockquote p { margin-bottom: 0.7rem; }
+  blockquote p:last-child { margin-bottom: 0; }
+
+  .trace {
+    display: block;
+    font-family: "Source Sans 3", sans-serif;
+    font-style: normal;
+    font-size: var(--step--1);
+    color: var(--muted);
+    margin-top: 0.55rem;
+  }
+
+  /* ── Tables ──────────────────────────────────────────────────── */
+  .scroller { overflow-x: auto; margin: 1.25rem 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+  th, td { text-align: left; padding: 0.62rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ── Root-cause blocks ───────────────────────────────────────── */
+  .cause {
+    margin: 1.35rem 0;
+    padding: 1.25rem 1.4rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .cause h3 { margin-top: 0; }
+  .cause pre {
+    margin: 0.9rem 0;
+    padding: 0.85rem 1rem;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .verdict {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--border);
+    font-size: var(--step--1);
+    color: var(--ink-soft);
+  }
+
+  /* ── Truth cards, severity-coded ─────────────────────────────── */
+  .truth {
+    margin: 1.15rem 0;
+    padding: 1.15rem 1.35rem;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--rule);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+  .truth h3 { margin: 0 0 0.5rem; font-size: var(--step-0); }
+  .truth p { font-size: var(--step--1); color: var(--ink-soft); }
+  .truth.crit { border-left-color: var(--crit); background: var(--crit-wash); }
+  .truth.warn { border-left-color: var(--warn); background: var(--warn-wash); }
+  .truth.info { border-left-color: var(--accent); background: var(--accent-wash); }
+
+  .flag {
+    display: inline-block;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.13rem 0.44rem;
+    border-radius: 3px;
+    margin-bottom: 0.55rem;
+  }
+  .flag.crit { color: var(--crit); background: var(--crit-wash); border: 1px solid var(--crit); }
+  .flag.warn { color: var(--warn); background: var(--warn-wash); border: 1px solid var(--warn); }
+  .flag.info { color: var(--accent); background: var(--accent-wash); border: 1px solid var(--accent); }
+
+  /* ── Executive entries ───────────────────────────────────────── */
+  .exec { padding: 1.5rem 0; border-top: 1px solid var(--border); }
+  .exec:first-of-type { border-top: none; }
+  .exec-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.85rem; margin-bottom: 0.15rem; }
+  .exec-head h3 { margin: 0; font-size: var(--step-2); font-family: Newsreader, ui-serif, Georgia, serif; font-weight: 500; }
+  .tally {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .motto { font-family: Newsreader, ui-serif, Georgia, serif; font-style: italic; color: var(--muted); font-size: var(--step-0); margin: 0 0 0.85rem; }
+  .have { font-size: var(--step--1); color: var(--ink-soft); margin-bottom: 0.85rem; }
+  .have .lbl, .becomes .lbl {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 0.28rem;
+  }
+  .becomes ul { margin-bottom: 0; }
+  .becomes li { font-size: var(--step--1); }
+
+  /* ── Sequence ────────────────────────────────────────────────── */
+  .seq { list-style: none; padding: 0; margin: 1.25rem 0 0; display: flex; flex-direction: column; gap: 0.75rem; }
+  .seq li { display: grid; grid-template-columns: 2.15rem 1fr; gap: 1rem; align-items: start; margin: 0; }
+  .seq .step {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: var(--step--1);
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-wash);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    text-align: center;
+    padding: 0.2rem 0;
+    line-height: 1.4;
+  }
+  .seq p { margin: 0; font-size: var(--step--1); }
+  .seq .lead { font-weight: 600; color: var(--ink); font-size: var(--step-0); display: block; margin-bottom: 0.12rem; }
+
+  /* ── Decisions ───────────────────────────────────────────────── */
+  .decision {
+    padding: 1.15rem 1.35rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.85rem;
+  }
+  .decision:last-child { margin-bottom: 0; }
+  .decision h3 { margin: 0 0 0.4rem; font-size: var(--step-0); }
+  .decision p { font-size: var(--step--1); color: var(--ink-soft); margin: 0; }
+
+  /* ── Sources ─────────────────────────────────────────────────── */
+  details {
+    margin-top: 3.25rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+  }
+  summary {
+    cursor: pointer;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  details[open] summary { margin-bottom: 1rem; }
+  details li { font-size: var(--step--1); color: var(--ink-soft); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="eyebrow">Edge Alpha · Proposal</p>
+    <h1>AGI Actions</h1>
+    <p class="standfirst">From executives that <em>describe</em> work to executives that <em>do</em> it.</p>
+    <p class="status">
+      Status: proposal — nothing here is built · 24 Aug 2026<br>
+      Current-state figures verified against source; external claims cited at the end.
+    </p>
+  </header>
+
+  <section>
+    <p class="kicker">The one-line version</p>
+    <h2>We built a good engine and connected it to almost nothing.</h2>
+
+    <div class="thesis">
+      <div class="figure">58<span>⁄61</span><sub>Actions end in prose</sub></div>
+      <div class="say">Our executives write excellent memos <em>about</em> work instead of doing it. This document is about attaching the hands — and about the two architectural holes that must close first, or every integration we add becomes a disconnected island.</div>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Part 1</p>
+    <h2>Where we actually are</h2>
+
+    <h3>What is real, and good</h3>
+    <p>The engine works. Registry → Prompt Composer → Operating Rhythm → the approval boundary → action chaining are all built, tested, and sound. That is not faint praise: it is a real autonomous executive system that runs weekly, maintains versioned knowledge, and produces genuine executive judgement.</p>
+
+    <div class="scroller">
+      <table>
+        <tbody>
+          <tr><td>Executives</td><td class="num">5 — CEO, Growth, Product, Operations, Finance</td></tr>
+          <tr><td>Seeded Programs</td><td class="num">10</td></tr>
+          <tr><td>Seeded Assets</td><td class="num">36</td></tr>
+          <tr><td>Seeded Actions</td><td class="num"><strong>61</strong></td></tr>
+          <tr><td>Connectors built</td><td class="num">5 — gmail, gmail_read, slack, stripe, posthog</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>What is not</h3>
+    <p>Of 61 Actions, exactly <strong>three</strong> touch the outside world:</p>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Action</th><th>Program</th><th>Connector</th></tr></thead>
+        <tbody>
+          <tr><td><code>interview_customers</code></td><td class="num">P001</td><td>gmail</td></tr>
+          <tr><td><code>post_team_update</code></td><td class="num">P001</td><td>slack</td></tr>
+          <tr><td><code>generate_personalized_outreach</code></td><td class="num">P005</td><td>gmail</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The other 58 terminate in prose. This isn't an oversight — it's written into their own docstrings, over and over: <em>"not a live CRM write," "a human still has to apply," "produces a draft."</em></p>
+
+    <p>And three connectors are built, authenticated, and used by <strong>zero</strong> Actions: <code>gmail_read</code>, <code>stripe</code>, <code>posthog</code>. Working sense organs sitting on a shelf.</p>
+
+    <h3>The two root causes</h3>
+    <p>Everything else in this document follows from these.</p>
+
+    <div class="cause">
+      <h3>1 · The Connector contract is email-shaped</h3>
+      <pre>ConnectorRequest = { idempotencyKey, recipients[], subject, body, channel? }</pre>
+      <p>That is the <em>entire</em> vocabulary a connector has. There is no way to express <em>"find companies matching this ICP,"</em> <em>"get a verified email for this person,"</em> <em>"book a 30-minute call,"</em> or <em>"publish this page."</em></p>
+      <p class="verdict"><strong>Consequence:</strong> a connector that is not a messaging connector <em>cannot currently exist.</em></p>
+    </div>
+
+    <div class="cause">
+      <h3>2 · There is no entity layer</h3>
+      <p><code>founder_contacts</code> is the only real-world business entity in the system. It is standalone — its single foreign key points at the founder, and it links to no Program, Action, or Asset. It is written by the founder in the UI and <strong>never by an Action</strong>. It is consumed as <em>prose</em>, rendered into a prompt as text.</p>
+      <p>Meanwhile the structured JSON an Action produces is parsed, briefly vaulted, read for four email fields, and then <strong>deleted</strong>. Action-to-action chaining passes paragraphs between prompts, not records.</p>
+      <p class="verdict"><strong>Consequence:</strong> there is no table an Action can write a record into. Nothing accumulates.</p>
+    </div>
+
+    <h3>These two holes <em>are</em> the founder's complaint</h3>
+    <blockquote>
+      <p>“Who gives a damn about position — I can say go mail the CEO of that company. But I need to get the email of that guy, that's more important.”</p>
+      <span class="trace">→ <strong>Root cause 1.</strong> The pipeline can reason about <em>who</em> to contact but has no capability to <em>find</em> them, because “find a person” is inexpressible in the connector contract.</span>
+    </blockquote>
+
+    <blockquote>
+      <p>“The AI SDR will say CEO or CTO of so-and-so company, but my contact list has the number of my barber. There is a mismatch.”</p>
+      <span class="trace">→ <strong>Root cause 2.</strong> Research output is prose inside a document; contacts are a disconnected hand-typed table. They can never meet, because nothing an Action produces can <em>become</em> a contact.</span>
+    </blockquote>
+
+    <p>The AI SDR isn't badly built. It is a well-built pipeline with no hands and no memory.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Part 2</p>
+    <h2>This is not a new direction</h2>
+    <p>It is the overdue delivery of a pillar we already committed to. From our own PRD, §3:</p>
+    <blockquote>
+      <p>“AI executives that generate deliverables” is table stakes. Position there and we lose a breadth war to better-funded incumbents. … <strong>Real execution through Connectors.</strong> It doesn't recommend the email — it sends it (with permission). Memo vs. action.</p>
+    </blockquote>
+    <p>We are currently positioned exactly where our own strategy document says we lose.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Part 3</p>
+    <h2>The spine</h2>
+    <p>The ask is for leaves: lead gen, LinkedIn, booking, scheduling, publishing. The honest engineering answer is that leaves without a spine produce twenty disconnected integrations <em>and the exact same mismatch problem</em>, at twenty times the cost. Three primitives, in dependency order.</p>
+
+    <h3>A capability contract</h3>
+    <p>Generalise <code>ConnectorRequest</code> from “a message” into a typed capability invocation. Keep <code>send</code>/<code>reconcile</code>/<code>revoke</code>, the grants table, the vault handling, and the generic OAuth routes exactly as they are — all of that is good, and none of it needs to change. Six classes, which is also the map of everything we'd ever build:</p>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Class</th><th>Direction</th><th>Examples</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Find</strong></td><td>data in, on demand</td><td>lead search, email enrichment, company data, web research</td></tr>
+          <tr><td><strong>Reach</strong></td><td>comms out</td><td>email, LinkedIn (drafted), SMS, WhatsApp</td></tr>
+          <tr><td><strong>Schedule</strong></td><td>both</td><td>calendar, booking links, reminders</td></tr>
+          <tr><td><strong>Publish</strong></td><td>out</td><td>website, blog, social, docs</td></tr>
+          <tr><td><strong>Transact</strong></td><td>out</td><td>invoices, payments, contracts, e-sign</td></tr>
+          <tr><td><strong>Observe</strong></td><td>data in, continuous</td><td>analytics, inbox, CRM, bank, accounting</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>An entity layer</h3>
+    <p>Real records that Actions read <strong>and write</strong>, that the founder can see and edit: leads, meetings, candidates, invoices, investors.</p>
+    <p>The critical link: a researched <strong>lead</strong>, once enriched with a verified email, <em>becomes</em> a contact. That single reconciliation closes the mismatch. “CEO of Acme” stops being a sentence in a document and becomes a row with a status, a history, and a next action.</p>
+
+    <h3>Structured action results</h3>
+    <p>The typed JSON the model already emits must survive into entities instead of being discarded. Chained steps should pass <strong>records</strong>, not paragraphs.</p>
+
+    <p><strong>Everything else hangs off these three.</strong> Build leaves first and we build the spine twice.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Part 4</p>
+    <h2>What we have, and what becomes possible</h2>
+
+    <div class="exec">
+      <div class="exec-head">
+        <h3>Growth — Patel</h3>
+        <span class="tally">6 programs · 17 assets · 41 actions</span>
+      </div>
+      <p class="motto">“I exist to create growth.”</p>
+      <p class="have"><span class="lbl">Today</span>P001 GTM · P002 Brand · P003 Demand Generation · P005 Customer Acquisition &amp; Sales Enablement — the 13-action AI SDR · P006 Customer Success · P008 Market Intelligence. Two of our three real-world Actions live here.</p>
+      <div class="becomes">
+        <span class="lbl">Becomes possible</span>
+        <ul>
+          <li><strong>Real lead acquisition</strong> — search → verified email → a lead record. Closes the complaint.</li>
+          <li><strong>Sending infrastructure that doesn't burn the domain</strong> — dedicated subdomain, warmup, caps, verify-before-send.</li>
+          <li><strong>Real reply handling</strong> — <code>gmail_read</code> is <em>already built</em>. Classify actual replies, not hypothetical ones.</li>
+          <li><strong>Booking that produces a meeting record</strong> — outreach carries a real link; a booked call becomes a row.</li>
+          <li><strong>Real market intelligence</strong> — P008 monitors competitors from model recall today. It should read the actual web.</li>
+          <li><strong>Publishing</strong> — brand and content assets should reach the actual site, not a document.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="exec">
+      <div class="exec-head">
+        <h3>Product — CTO</h3>
+        <span class="tally">2 of 8 programs · 11 assets · 10 actions</span>
+      </div>
+      <p class="motto">“I build what the market will pay for.”</p>
+      <p class="have"><span class="lbl">Today</span>P015 Validate · P016 Product (vision → roadmap → backlog → PRD, newly built). P017–P022 — Build, AI, Platform, Quality, Security, Innovate — named in the workbook, unseeded.</p>
+      <div class="becomes">
+        <span class="lbl">Becomes possible</span>
+        <ul>
+          <li><strong>The customer-interview engine</strong> — schedule → transcribe → auto-synthesise. The highest-leverage pre-PMF activity, and 100% manual today. Nobody does this well.</li>
+          <li><strong>PMF scored from real usage</strong> — the <code>posthog</code> connector exists and is unused. Read actual retention, not vibes.</li>
+          <li><strong>Backlog and PRDs as real tickets</strong> — so P016's output reaches engineering.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="exec">
+      <div class="exec-head">
+        <h3>Operations — COO</h3>
+        <span class="tally">1 of 6 programs · 3 assets · 5 actions</span>
+      </div>
+      <p class="motto">“I make the company run.”</p>
+      <p class="have"><span class="lbl">Today</span>P009 Review only. P010 Plan · P011 Execute · P012 People · P013 Govern · P014 Improve are named and unseeded — and uniquely, the only unseeded set for which the workbook also supplies action names.</p>
+      <div class="becomes">
+        <span class="lbl">Becomes possible</span>
+        <ul>
+          <li><strong>KPI dashboards from real numbers</strong> — today they <em>describe</em> dashboards. Stripe + PostHog + bank makes them actual.</li>
+          <li><strong>Hiring pipeline</strong> — sourcing → screening → scheduling. Recruiting is a founder's second full-time job.</li>
+          <li><strong>Vendor and tool spend</strong> — what you pay for, and what's unused.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="exec">
+      <div class="exec-head">
+        <h3>Finance — CFO</h3>
+        <span class="tally">1 of 7 programs · 5 assets · 5 actions</span>
+      </div>
+      <p class="motto">“I keep the company alive and fundable.”</p>
+      <p class="have"><span class="lbl">Today</span>P023 Model only. P024 Capital · P025 Raise · P026 Cash · P027 Metrics · P028 Risk · P029 Value exist only in the workbook.</p>
+      <div class="becomes">
+        <span class="lbl">Becomes possible — arguably the highest-value integration in the product</span>
+        <ul>
+          <li><strong>Live runway.</strong> Bank + Stripe → real cash, real burn, real runway, and an alert when it moves. <em>Founders die of cash surprise.</em> Note the precedent: Stripe's connect hook already writes structured columns onto the founder's profile — the only place in the codebase a connector writes real business data. The pattern exists; it has one user.</li>
+          <li><strong>Investor-update autopilot</strong> — real metrics → monthly update → sent to the real cap table. Universally hated, universally skipped.</li>
+          <li><strong>Fundraise pipeline</strong> — investors as entities, not prose.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="exec">
+      <div class="exec-head">
+        <h3>CEO — Chief of Staff</h3>
+        <span class="tally">0 programs, by design</span>
+      </div>
+      <p class="motto">“I turn the score into a mandate.”</p>
+      <p class="have"><span class="lbl">Today</span>Owns the Strategy Session and the Executive Contract — the mandate flow, not Programs.</p>
+      <div class="becomes">
+        <span class="lbl">Becomes possible</span>
+        <ul>
+          <li><strong>The Learn arc.</strong> Today the loop is Sense (Q-Score) → Decide (Mandate) → <em>describe acting</em>. With real execution, the CEO reads genuine outcomes across every executive and re-cuts the mandate against what actually happened. That closes the loop — and it is the thing no standalone tool can do.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="truth info">
+      <span class="flag info">Do this first</span>
+      <h3>The cheapest big win</h3>
+      <p><code>gmail_read</code>, <code>stripe</code> and <code>posthog</code> are built, connected, and used by nothing. Wiring them as <strong>inputs</strong> needs no new vendor, no new connector, and no approval flow — every read is internal and reversible. The CFO reads Stripe. The CTO reads PostHog. Everyone reads the inbox. Do this before building anything new.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Part 5</p>
+    <h2>Hard truths</h2>
+    <p>Researched, not assumed. These change the design.</p>
+
+    <div class="truth crit">
+      <span class="flag crit">Do not build</span>
+      <h3>LinkedIn automation</h3>
+      <p>There is no sanctioned path. The official partner API cannot send connection requests, cannot DM, and cannot scrape. None of the consumer outreach tools are approved partners. 2026 enforcement escalated sharply — sessions flagged within 48 hours, suspensions rather than warnings — and in March 2026 HeyReach's own company page and founder profile were banned.</p>
+      <p><strong>Recommendation: draft-and-queue only.</strong> The AI decides who and writes what; the founder clicks send inside LinkedIn. Most of the value, zero ban risk. Anything headless risks the founder's account, and potentially ours.</p>
+    </div>
+
+    <div class="truth crit">
+      <span class="flag crit">Design constraint</span>
+      <h3>Cold email will burn the domain if done naively</h3>
+      <p>The practical 2026 ceiling is <strong>20–50 sends per mailbox per day</strong>, not Gmail's technical 2,000. DMARC <code>p=reject</code> is the effective default at Gmail and Outlook, the spam-complaint ceiling is 0.10%, one-click unsubscribe is mandatory, and unverified lists now actively trip bounce-rate compliance gates.</p>
+      <p><strong>Never send SDR volume from the founder's primary inbox.</strong> This needs a dedicated sending subdomain, a warmup ramp, hard daily caps, and verification before every send — designed in from the start, not bolted on.</p>
+    </div>
+
+    <div class="truth warn">
+      <span class="flag warn">Needs a decision</span>
+      <h3>ADR-004 is a wall, and it is load-bearing</h3>
+      <p>Every irreversible act requires per-payload, just-in-time approval, and ADR-020 deliberately closes the recurring-action loophole. Fifty outreach emails means fifty approvals. That is unusable.</p>
+      <p><strong>Proposed amendment: batch-payload approval.</strong> The founder reviews N prepared payloads and approves once, with the hash binding that exact set — change any byte and the approval is void. This preserves ADR-004's actual principle (<em>the founder saw the exact content before it left</em>) while making volume viable. ADR-004's reasoning is sound and its rejection of unattended irreversible actions should survive intact.</p>
+    </div>
+
+    <div class="truth info">
+      <span class="flag info">Positioning</span>
+      <h3>The category has a credibility problem, not a capability gap</h3>
+      <p>11x was publicly reported claiming customers it did not have, and ZoomInfo said it “performed significantly worse than our SDR employees.” Artisan has documented reviews calling output “obviously AI,” including one campaign of 1,400 emails with zero responses.</p>
+      <p><strong>Being another AI SDR is not a differentiator.</strong> Ours operates under a mandate, derived from a Q-Score, with outcomes that feed back. Apollo does not know your strategy. Calendly does not know your runway. That coherence is the moat — not the integrations themselves.</p>
+    </div>
+
+    <div class="truth warn">
+      <span class="flag warn">Reframe</span>
+      <h3>The sequencing tension, stated honestly</h3>
+      <p>Our own follow-ups doc and PRD §13.7 both pre-label connector breadth as <em>the</em> named scope-creep risk, gated behind the week-4 retention gate.</p>
+      <p><strong>Counter-hypothesis worth taking seriously:</strong> documents nobody acts on may <em>be</em> the retention problem. If so, this work is what passes the gate, not what waits behind it. That reframing deserves a deliberate decision rather than a default.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="kicker">Part 6</p>
+    <h2>Providers</h2>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Need</th><th>Call</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Lead data</td>
+            <td><strong>Apollo.io</strong></td>
+            <td>275M contacts; $49–119/user/mo + credits ($25 per extra 1k). Note the shape: <em>People Search</em> finds prospects but <strong>returns no emails</strong> — <em>People Enrichment</em> does (1 credit/email, 8/phone). Plan for two calls, not one.</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>Hunter.io — <em>rejected</em></td>
+            <td>Cleaner API, but $6.50 per search credit is the wrong cost shape for volume. Its verification is excellent though ($0.03) — worth keeping as a verify-before-send layer.</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>Clearbit — <em>rejected</em></td>
+            <td>Absorbed into HubSpot, no public API pricing, and enrichment-only: it deepens records you already have; it doesn't find people.</td>
+          </tr>
+          <tr>
+            <td>Scheduling</td>
+            <td><strong>Cal.com</strong></td>
+            <td>~$0.10/booking against Calendly's $1,500–3,000/mo per-seat at embedded scale. Open-source, white-label, API-first.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Commercial model — bring your own account</h3>
+    <p>Founders connect <strong>their own</strong> Apollo and Cal.com accounts through the grants + vault OAuth pattern we already have. Zero cost of goods per founder, terms-of-service liability stays with the account holder, founders reuse tools they already pay for, and it needs no new architecture. Managed keys can come later, if ever.</p>
+  </section>
+
+  <section>
+    <p class="kicker">Part 7</p>
+    <h2>Sequencing</h2>
+    <ol class="seq">
+      <li>
+        <span class="step">A</span>
+        <p><span class="lead">Spine</span>Capability contract, entity layer, structured results. Plus wire the three idle connectors as sense organs — near-free, immediate value.</p>
+      </li>
+      <li>
+        <span class="step">B</span>
+        <p><span class="lead">One vertical slice, all the way through</span>Growth: find → verified email → lead → batch-approved outreach → reply detection → booked meeting. Proves the entire pattern on the exact case that triggered this document.</p>
+      </li>
+      <li>
+        <span class="step">C</span>
+        <p><span class="lead">Repeat the pattern</span>Finance live-runway. Product interview-engine.</p>
+      </li>
+      <li>
+        <span class="step">D</span>
+        <p><span class="lead">Breadth</span>Everything else — now cheap, because the spine exists.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <p class="kicker">Part 8</p>
+    <h2>Three decisions needed before building</h2>
+    <p>These are the founder's to make. This document deliberately does not pre-empt them.</p>
+
+    <div class="decision">
+      <h3>Amend ADR-004 to allow batch-payload approval?</h3>
+      <p>Without it, volume outbound is impossible. With it, we knowingly relax a locked safety decision — in spirit-preserving fashion, but knowingly.</p>
+    </div>
+    <div class="decision">
+      <h3>Bring-your-own-account, or managed keys?</h3>
+      <p>Recommendation is BYOK. It's a business-model decision, not a technical one.</p>
+    </div>
+    <div class="decision">
+      <h3>Spine-first, or a fast Apollo win first?</h3>
+      <p>Spine-first is correct and slower. A quick Apollo integration would demo well next week and be rebuilt within a quarter. Both are defensible — they should be chosen, not drifted into.</p>
+    </div>
+  </section>
+
+  <details>
+    <summary>Sources</summary>
+    <ul>
+      <li><a href="https://docs.apollo.io/reference/people-api-search">Apollo People Search API</a> · <a href="https://docs.apollo.io/reference/people-enrichment">People Enrichment</a> · <a href="https://www.smarte.pro/blog/apollo-io-pricing">Apollo pricing breakdown</a></li>
+      <li><a href="https://mailsfinder.com/compare/hunter-vs-clearbit-vs-apollo">Hunter vs Clearbit vs Apollo</a> · <a href="https://abmatic.ai/blog/clearbit-vs-hunter-io-2026">Clearbit vs Hunter 2026</a></li>
+      <li><a href="https://northlight.ai/blog/is-linkedin-automation-against-the-rules">LinkedIn automation rules 2026</a> · <a href="https://linkedinsider.blog/linkedin-automation-crackdown-2026">2026 crackdown</a> · <a href="https://www.wonda.sh/blog/linkedin-automation-safety-heyreach-ban">HeyReach ban</a></li>
+      <li><a href="https://growthengineer.ai/blog/cold-email-deliverability-2026">Cold email deliverability 2026</a> · <a href="https://www.primeforge.ai/blog/gmail-sending-limit">Gmail sending limits</a> · <a href="https://www.mailforge.ai/blog/gdpr-vs-can-spam-email-compliance-compared">GDPR vs CAN-SPAM</a></li>
+      <li><a href="https://apiscout.dev/guides/cal-com-vs-calendly-vs-savvycal-scheduling-api-2026">Cal.com vs Calendly scheduling APIs</a></li>
+      <li><a href="https://techcrunch.com/2025/03/24/a16z-and-benchmark-backed-11x-has-been-claiming-customers-it-doesnt-have">11x customer claims reporting</a> · <a href="https://gtmlens.com/state-of-ai-gtm-q2-2026/">State of AI GTM Q2 2026</a></li>
+    </ul>
+  </details>
+
+</div>

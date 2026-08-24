@@ -23,6 +23,7 @@ import { log } from '@/lib/logger'
 import type { ActionPayload } from './payload'
 import { recordAttempt, type ActionLogEntry } from './log'
 import { storePayload } from './payload-vault'
+import { parseModelLeads, upsertLeads } from '@/lib/entities/leads'
 
 /** One Claude call. Actions produce short payloads, not 2,000-word documents. */
 const TIMEOUT_MS = 90_000
@@ -128,6 +129,36 @@ function assertRecipientsInContext(payload: ActionPayload, companyContextText: s
 }
 
 /**
+ * Turn an Action's structured output into real records, when it declares it produces any.
+ *
+ * ⚠️ THE SPINE (docs/AGI_ACTIONS_PRD.md, slice 1). Every Action already emits its fenced JSON
+ * into `payload`; until this existed, the structure was discarded and only `payload.body` prose
+ * survived. This is the one place that changes.
+ *
+ * Never throws. A malformed block writes zero and logs — the Action's analysis genuinely
+ * succeeded, and failing here would fail the entire Program stage (lib/rhythm/run.ts). The count
+ * is returned so it can land in the Action's own `result`, making "0 leads" visible to the
+ * founder instead of silent.
+ */
+async function writeProducedEntities(
+  admin: SupabaseClient,
+  action: ReturnType<typeof getAction>,
+  payload: ActionPayload,
+  args: GenerateActionArgs,
+): Promise<number | undefined> {
+  if (action.produces !== 'lead') return undefined
+  const leads = parseModelLeads(payload)
+  if (leads === null) {
+    log.warn('action declares produces:lead but emitted no leads block', { actionId: args.actionId })
+    return 0
+  }
+  return upsertLeads(admin, args.founderId, leads, {
+    programId: args.program.id,
+    executionId: args.executionId,
+  })
+}
+
+/**
  * Generate one Action and record the attempt. Service-role client required.
  *
  * @returns the `action_log` entry — `pending_approval` for anything irreversible, `executed` for
@@ -220,6 +251,11 @@ export async function generateAction(
   // back to `raw` because an internal action need not emit a fenced JSON block (parseActionPayload
   // returns null and `payload` becomes `{ body: raw }` above) — but if it did, `payload.body`
   // takes priority as the more deliberately-produced field.
+
+  // The spine: an Action that declares `produces` turns its structured output into real rows
+  // before the attempt is recorded, so the count can be part of the record.
+  const entitiesWritten = await writeProducedEntities(admin, action, payload, args)
+
   return recordAttempt(admin, {
     founderId: args.founderId,
     actionId: args.actionId,
@@ -228,6 +264,11 @@ export async function generateAction(
     programId: args.program.id,
     executionId: args.executionId,
     payload,
-    result: { kind: 'internal_analysis', completed: true, summary: payload.body ?? raw },
+    result: {
+      kind: 'internal_analysis',
+      completed: true,
+      summary: payload.body ?? raw,
+      ...(entitiesWritten !== undefined ? { entitiesWritten } : {}),
+    },
   })
 }

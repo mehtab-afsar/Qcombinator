@@ -4,6 +4,13 @@
  * Internal and reversible: ranks accounts, spends nothing, commits nothing.
  * Same evidence discipline as P001's prioritize_channels. Runs
  * autonomously (ADR-004).
+ *
+ * ⚠️ THIS PROMPT'S JSON TAIL IS LOAD-BEARING. This Action declares `produces: 'lead'`
+ * (see its registry entry), so the fenced JSON block below is parsed by
+ * `lib/entities/leads.ts` and written as real rows in `founder_leads` — the first Action in the
+ * system whose output becomes a record rather than prose. Change the block's shape here and the
+ * writer silently produces zero leads (it logs, and the count surfaces to the founder, but the
+ * rows do not appear). The schema is `modelLeadsPayloadSchema`; keep the two in step.
  */
 export const SCORE_AND_PRIORITIZE_LEADS_PROMPT = `# Action Instructions
 
@@ -89,9 +96,36 @@ those inputs. Use **[TO VALIDATE: …]** where a real signal is needed but not y
 
 ---
 
+# Then, after the prose: the machine-readable ranking
+
+End your response with exactly one fenced \`json\` block listing the accounts you ranked in §2.
+This block becomes the founder's real, editable lead list — it is not a summary, it is the
+output. The prose above is what they read; this is what they act on.
+
+\`\`\`json
+{
+  "leads": [
+    { "company": "Acme Corp", "title": "VP of Engineering", "score": 88, "rationale": "One line: why this rank." }
+  ]
+}
+\`\`\`
+
+Rules for this block:
+
+* **\`company\` is required.** \`title\`, \`score\` and \`rationale\` are optional but strongly preferred.
+* **\`title\` is a ROLE, never a person.** "VP of Engineering", not "Dana Whitfield". You have not
+  been given real people and must not invent any — this is the same rule find_decision_makers
+  operates under, and it holds here.
+* **Never invent an email address.** There is no email field, deliberately.
+* **\`score\` is 0–100**, and should reflect §2's ranking rather than a fresh judgement.
+* Include only the accounts you actually ranked. Deprioritized accounts from §3 stay out.
+
+---
+
 # Success Criteria
 
 * The shortlist is a real decision, not "pursue everything."
 * Every rank traces to stated evidence, not vibes.
 * Deprioritizing is explicit, not implied by omission.
-* generate_personalized_outreach can take §1's shortlist directly as its input.`
+* generate_personalized_outreach can take §1's shortlist directly as its input.
+* The JSON block is present, valid, and matches the ranking in §2.`

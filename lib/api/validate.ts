@@ -381,6 +381,32 @@ export const founderContactPostSchema = z.object({
 
 export type FounderContactPostInput = z.infer<typeof founderContactPostSchema>
 
+// ─── Founder leads (the AI SDR's researched pipeline) ─────────────────────
+// Same cap reasoning as founderContactPostSchema above. NOTE these are the FOUNDER-facing edit
+// schemas; the shape an Action's model emits is validated separately in lib/entities/leads.ts,
+// deliberately — one is a person typing into a form, the other is a language model's output,
+// and they should never share a validator that could be loosened for one and silently loosen
+// the other.
+
+const LEAD_STATUSES = ['researched', 'contacted', 'replied', 'qualified', 'dead'] as const
+
+export const founderLeadPostSchema = z.object({
+  company:  z.string().trim().min(1, 'Company is required').max(200),
+  title:    z.string().trim().max(200).optional(),
+  notes:    z.string().trim().max(1_000).optional(),
+})
+
+/** Founder edits on an existing lead. Every field optional — a PATCH sends only what changed. */
+export const founderLeadPatchSchema = z.object({
+  status: z.enum(LEAD_STATUSES).optional(),
+  notes:  z.string().trim().max(1_000).optional(),
+}).refine(v => v.status !== undefined || v.notes !== undefined, {
+  message: 'Nothing to update',
+})
+
+export type FounderLeadPostInput  = z.infer<typeof founderLeadPostSchema>
+export type FounderLeadPatchInput = z.infer<typeof founderLeadPatchSchema>
+
 // ─── Investor startup deep-dive: memo + share (Phase 0-I / H-3) ──────────
 
 export const startupMemoSchema = z.object({

@@ -18,6 +18,17 @@ import type { ActionDef } from '../../../types'
  *
  * AI SDR Milestone 1 (real chaining): `dependsOn: 'research_account'` — reads that Action's own
  * result (the account brief) as an input, threaded in by lib/rhythm/run.ts.
+ *
+ * ⚠️ `produces: 'lead'` — THE FIRST ACTION IN THE SYSTEM THAT WRITES A REAL RECORD
+ * (docs/AGI_ACTIONS_PRD.md, spine slice 1). Chosen for this deliberately: it is the LAST step of
+ * P005's research chain, it already receives the whole upstream chain (find_target_companies →
+ * find_decision_makers → research_account) via dependsOn, and it is the natural "here is the
+ * final ranked list" moment. One writer at the end of the chain means no upsert ambiguity
+ * between four Actions racing to create the same row. Its prompt emits the matching fenced JSON;
+ * lib/entities/leads.ts validates and writes it.
+ *
+ * Still `irreversible: false` — writing an internal, founder-owned row is not a Connector side
+ * effect. Nothing leaves the building, so ADR-004's boundary does not apply.
  */
 export const SCORE_AND_PRIORITIZE_LEADS: ActionDef = {
   id: 'score_and_prioritize_leads',
@@ -26,5 +37,6 @@ export const SCORE_AND_PRIORITIZE_LEADS: ActionDef = {
   kind: 'oneoff',
   dependsOn: 'research_account',
   irreversible: false,
+  produces: 'lead',
   instructionsRef: 'score_and_prioritize_leads',
 }
