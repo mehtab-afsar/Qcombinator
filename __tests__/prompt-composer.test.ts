@@ -280,6 +280,34 @@ describe('layer 4 is data, never instructions', () => {
   it('treats the Q-Score as read-only (ADR-005)', () => {
     expect(composePrompt(valid).layers[3].text).toContain('read only')
   })
+
+  it('renders stripeMetrics as a fenced data block when present', () => {
+    // The founder's own verified revenue (ADR-038). Fenced like every other context field —
+    // it is data about the company, never an instruction, however authoritative it is.
+    const metrics = 'Read directly from this founder\'s connected Stripe account.\n\nMonthly recurring revenue: $12,500'
+    const pkg = composePrompt({ ...valid, context: { ...context, stripeMetrics: metrics } })
+    const layer4 = pkg.layers[3].text
+    expect(layer4).toContain('## Verified Revenue')
+    const at = layer4.indexOf(metrics)
+    expect(at).toBeGreaterThan(-1)
+    expect(layer4.lastIndexOf('<data>', at)).toBeGreaterThan(layer4.lastIndexOf('</data>', at))
+  })
+
+  it('labels the revenue as verified, in contrast to market news being unverified', () => {
+    // The two labels carry opposite trust signals on purpose, and the model is meant to weight
+    // them differently. Losing either label is a silent correctness bug.
+    const pkg = composePrompt({
+      ...valid,
+      context: { ...context, stripeMetrics: 'MRR: $1', marketSignals: 'Some startup raised.' },
+    })
+    expect(pkg.layers[3].text).toContain('Verified Revenue')
+    expect(pkg.layers[3].text).toContain('unverified third-party news')
+  })
+
+  it('omits the revenue section entirely when Stripe is not connected', () => {
+    const pkg = composePrompt({ ...valid, context: { ...context, stripeMetrics: undefined } })
+    expect(pkg.layers[3].text).not.toContain('Verified Revenue')
+  })
 })
 
 // ─── The rest of PRD §7.2's rules ─────────────────────────────────────────────

@@ -20,6 +20,7 @@ import { getCurrentAsset } from '@/lib/assets/versioning'
 import type { CompanyContext } from '@/lib/prompts/compose'
 import { getComparableCohortContext } from '@/lib/comparables/retrieve'
 import { getMarketSignalContext } from '@/lib/comparables/market-signals'
+import { getStripeMetricsContext } from '@/lib/connectors/context'
 import { collectCycleDelta } from './delta'
 import { getLastCompletedRun, type RhythmRun } from './runs'
 import { RhythmError } from './errors'
@@ -49,6 +50,12 @@ export async function buildContext(
   ].filter(Boolean).join('\n')
   const comparableCohort = await getComparableCohortContext(admin, founderId).catch(() => null)
   const marketSignals = await getMarketSignalContext(admin, founderId).catch(() => null)
+  // The founder's own verified revenue (ADR-038). A plain read of columns Stripe's connector
+  // already synced onto founder_profiles — no call to Stripe, so this adds no external
+  // dependency, latency or spend to a cycle. Living in buildContext means the founder-triggered
+  // "Direct the AI" rework (lib/rhythm/direct.ts) gets it for free too, since that calls this
+  // same builder.
+  const stripeMetrics = await getStripeMetricsContext(admin, founderId).catch(() => null)
   return {
     strategy: strategyText,
     contract: contractText,
@@ -56,6 +63,7 @@ export async function buildContext(
     currentDate: new Date().toISOString().slice(0, 10),
     comparableCohort: comparableCohort ?? undefined,
     marketSignals: marketSignals ?? undefined,
+    stripeMetrics: stripeMetrics ?? undefined,
   }
 }
 

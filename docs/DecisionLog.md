@@ -604,6 +604,56 @@ that already exists.
 
 ---
 
+## ADR-038 — A founder's own verified connected-account data is Company Context, not a cycle trigger 🔒
+**Decision (Mo, 24 Aug 2026, on the AGI Actions PRD's "cheapest big win"):** the Stripe figures a
+founder's own connected account already synced onto `founder_profiles` (`stripe_mrr`, `stripe_arr`,
+`stripe_customers`, `stripe_last30`) are rendered into **Company Context** for every Asset, Action
+and Briefing, via `lib/connectors/context.ts`'s `getStripeMetricsContext` wired into
+`buildContext`. Only `stripe_verified === true` renders — an unverified figure must never present
+as fact, since the whole point of this field is that it outranks self-reported revenue.
+
+**This partially closes ADR-028's "Open question for the pilot"**, and only partially, on purpose.
+That clause deferred whether an *autonomous external signal* should exist, listing "connected-account
+data" among its examples. It is closed here for **first-party, founder-connected, verified** data
+only. Third-party signals (competitor moves, scraped market data) remain open exactly as ADR-028
+left them.
+
+**THE LINE, and it is the whole reason this is safe: context, never a trigger.** `lib/rhythm/delta.ts`
+is deliberately untouched. A Stripe signal there would flip `hasNewInput` and make revenue movement
+*cause* asset regeneration — which is ADR-028's genuinely decided territory (a cycle is fed by a
+founder-activity delta; an unchanged asset is not regenerated). Letting an asset that is being
+generated anyway see real numbers is a different thing from deciding what gets generated.
+`__tests__/stripe-context.test.ts` asserts `delta.ts` contains no Stripe reference; if that test
+ever fails, this line has been crossed and needs its own ADR.
+
+**Why now, and why this was not "building it pre-emptively":**
+1. **The line was already crossed, deliberately.** `marketSignals` (TechCrunch RSS) and
+   `comparableCohort` have flowed into `buildContext` unconditionally since RAG Phase 1/3. ADR-028
+   names "market news" as an example of the not-yet-built signal — yet market news was already in
+   there. This makes the founder's *own verified revenue* the more conservative addition, not the
+   more radical one.
+2. **The product was already contradicting itself.** A founder could see their verified MRR on
+   `/founder/dashboard` while AS049 (Financial Model) wrote `[TO VALIDATE: …]` beside it. Five
+   seeded Assets (AS020, AS044, AS049, AS051, AS057) explicitly ask for data they could not reach.
+3. **ADR-026 is not engaged.** Its "no Connectors inside a cycle" clause is about *acting* — its
+   own rationale is ADR-004's irreversible gate — and is time-boxed to "v1 … those are Story 3",
+   which shipped. This is a plain DB read besides: nothing contacts Stripe, so a cycle using it
+   makes no external call, spends nothing, and does not care whether Stripe is up.
+
+**Scoped to Stripe.** PostHog and Gmail-read would each need a **live API call inside every cycle**
+— real latency, a new per-cycle failure mode, and genuinely "the rhythm calling a connector." Each
+needs its own decision; this ADR does not grant them.
+
+**Read-only, like the Q-Score beside it.** Revenue landing in Company Context never moves a score
+(ADR-005), and never will from this field.
+
+**Rejected:** adding Stripe to the delta digest (see THE LINE above); rendering unverified figures;
+a narrow per-Asset allowlist — the `founder_contacts` narrow-gating precedent exists because that
+data is PII whose copies outlive their source row, and aggregate revenue carries no such risk.
+**Related:** ADR-005, ADR-008, ADR-026, ADR-028, ADR-031, ADR-032.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

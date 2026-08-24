@@ -59,6 +59,11 @@ export function renderCompanyContext(
 
   field('Comparable Companies', context.comparableCohort)
   field('Recent Market Activity (unverified third-party news)', context.marketSignals)
+  // The label carries the trust level, exactly as the line above does for the opposite reason:
+  // that one warns the model the news is unverified, this one tells it these figures outrank any
+  // self-reported number in the context. Read-only, like the Q-Score above it — nothing here
+  // moves a score (ADR-005).
+  field('Verified Revenue (from the founder\'s connected Stripe account)', context.stripeMetrics)
 
   const assets = context.currentAssets ?? {}
   const included = relevantAssets.filter(id => assets[id]?.trim())

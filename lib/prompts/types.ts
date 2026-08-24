@@ -101,6 +101,20 @@ export interface CompanyContext {
    * cleanup when the contact is later deleted.
    */
   founderContacts?: string
+  /**
+   * The founder's OWN verified revenue, read from the Stripe figures their connected account
+   * already synced onto `founder_profiles` (`lib/connectors/context.ts`; ADR-038).
+   *
+   * The trust level is the point, and it is the opposite of `marketSignals`: that field is
+   * explicitly unverified third-party news, this is first-party payment data the founder
+   * connected themselves. The rendered text says so, so the model weights it above any
+   * self-reported figure elsewhere in the context.
+   *
+   * A DB read, not a connector call — nothing here contacts Stripe, so a cycle using it makes no
+   * external call and spends nothing. And like `qScore`, it is strictly read-only: composing
+   * never moves the score, and revenue landing here never will either (ADR-005).
+   */
+  stripeMetrics?: string
 }
 
 export interface ComposeInput {
