@@ -40,12 +40,15 @@ export type ActionId = string
 
 /**
  * Widened as adapters land in Story 3. Gmail (send) is the first (PRD §10); Slack is the second.
- * `gmail_read`, `stripe` and `posthog` are never used as an `ActionDef.connector` — none has an
- * irreversible action; all three are founder-triggered/sync connectors (see
- * `lib/connectors/{gmail-read,stripe,posthog}.ts`). The type still needs to admit them for
+ * `gmail_read`, `stripe`, `posthog` and `apollo` are never used as an `ActionDef.connector` —
+ * none has an irreversible action; all four are founder-triggered/sync connectors (see
+ * `lib/connectors/{gmail/read,stripe,posthog,apollo}/**`). The type still needs to admit them for
  * `connector_grants`/registry bookkeeping.
+ *
+ * `apollo` is the first provider authenticated by an API KEY rather than OAuth, and the first
+ * that acquires data rather than sending a message (docs/AGI_ACTIONS_PRD.md, spine slice 2).
  */
-export type ConnectorId = 'gmail' | 'slack' | 'gmail_read' | 'stripe' | 'posthog'
+export type ConnectorId = 'gmail' | 'slack' | 'gmail_read' | 'stripe' | 'posthog' | 'apollo'
 
 // ─── Definitions ──────────────────────────────────────────────────────────────
 

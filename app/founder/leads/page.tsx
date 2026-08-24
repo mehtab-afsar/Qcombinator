@@ -15,8 +15,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Crosshair, Trash2, Plus } from 'lucide-react'
-import { bg, surf, bdr, ink, muted, blue, green, amber, alpha } from '@/lib/constants/colors'
+import Link from 'next/link'
+import { Crosshair, Plus, Search, ArrowRight } from 'lucide-react'
+import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { PageHeader } from '@/features/shared/components/PageHeader'
 import { PageContainer } from '@/features/shared/components/PageContainer'
 import { SectionCard } from '@/features/shared/components/SectionCard'
@@ -24,31 +25,12 @@ import { Button } from '@/features/shared/components/Button'
 import { EmptyState } from '@/features/shared/components/EmptyState'
 import { Skeleton } from '@/features/shared/components/Skeleton'
 import { useToast } from '@/features/shared/hooks/useToast'
+import { LeadRow, type Lead } from '@/features/executive/components/LeadRow'
 
-interface Lead {
-  id: string
-  company: string
-  title: string | null
-  contact_name: string | null
-  email: string | null
-  email_status: 'none' | 'found' | 'verified'
-  score: number | null
-  rationale: string | null
-  status: 'researched' | 'contacted' | 'replied' | 'qualified' | 'dead'
-  source: 'ai_research' | 'founder' | 'enrichment'
-  notes: string | null
-  created_at: string
-}
-
-const STATUSES: Lead['status'][] = ['researched', 'contacted', 'replied', 'qualified', 'dead']
-
-const STATUS_COLOR: Record<Lead['status'], string> = {
-  researched: muted,
-  contacted: blue,
-  replied: amber,
-  qualified: green,
-  dead: muted,
-}
+/** Matches MAX_PER_REQUEST in app/api/leads/enrich/route.ts — the server is the real limit. */
+const MAX_ENRICH = 25
+/** Roughly one company resolution + one email reveal. Shown before spending, never after. */
+const CREDITS_PER_LEAD = 2
 
 const emptyForm = { company: '', title: '' }
 
@@ -58,6 +40,9 @@ export default function LeadsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [enriching, setEnriching] = useState(false)
+  const [apolloConnected, setApolloConnected] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -72,6 +57,74 @@ export default function LeadsPage() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  // Whether Apollo is connected decides between the "Find emails" button and the connect prompt.
+  useEffect(() => {
+    let live = true
+    void (async () => {
+      try {
+        const res = await fetch('/api/connectors')
+        if (!res.ok || !live) return
+        const data = await res.json()
+        const grants: Array<{ provider: string; status: string }> = data.grants ?? []
+        setApolloConnected(grants.some(g => g.provider === 'apollo' && g.status === 'active'))
+      } catch {
+        if (live) setApolloConnected(false)
+      }
+    })()
+    return () => { live = false }
+  }, [])
+
+  const enrichable = (leads ?? []).filter(l => l.email_status === 'none')
+  const selectedEnrichable = enrichable.filter(l => selected.has(l.id))
+
+  function toggle(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function enrichSelected() {
+    if (selectedEnrichable.length === 0) return
+    setEnriching(true)
+    try {
+      const res = await fetch('/api/leads/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: selectedEnrichable.slice(0, MAX_ENRICH).map(l => l.id) }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Enrichment failed.'); return }
+      setSelected(new Set())
+      await load()
+      toast.success(
+        data.enriched > 0
+          ? `Found ${data.enriched} email${data.enriched === 1 ? '' : 's'} of ${data.attempted} tried`
+          : `No emails found across ${data.attempted} lead${data.attempted === 1 ? '' : 's'}`,
+      )
+    } catch {
+      toast.error('Could not reach the server.')
+    } finally {
+      setEnriching(false)
+    }
+  }
+
+  async function promote(id: string, company: string) {
+    setBusyId(id)
+    try {
+      const res = await fetch(`/api/leads/${id}/promote`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Could not add to contacts.'); return }
+      await load()
+      toast.success(`${company} added to your contacts`)
+    } catch {
+      toast.error('Could not reach the server.')
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function addLead(e: React.FormEvent) {
     e.preventDefault()
@@ -154,6 +207,47 @@ export default function LeadsPage() {
             </form>
           </SectionCard>
 
+          {/* The enrichment bar — only once there is something to enrich. Doubles as the door to
+              connecting Apollo, the same contextual-prompt pattern ContactsPrompt uses. */}
+          {enrichable.length > 0 && apolloConnected !== null && (
+            <SectionCard title="Find their emails">
+              {apolloConnected ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <p style={{ color: muted, fontSize: 13, margin: 0, flex: 1, minWidth: 240, lineHeight: 1.5 }}>
+                    {selectedEnrichable.length === 0
+                      ? `Select leads below to look up a real person and work email at each. ${enrichable.length} still need one.`
+                      : `${selectedEnrichable.length} selected — about ${selectedEnrichable.length * CREDITS_PER_LEAD} Apollo credits.`}
+                  </p>
+                  <Button
+                    size="sm"
+                    loading={enriching}
+                    disabled={selectedEnrichable.length === 0}
+                    onClick={() => void enrichSelected()}
+                    icon={<Search size={14} />}
+                  >
+                    Find emails
+                  </Button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  <p style={{ color: muted, fontSize: 13, margin: 0, flex: 1, minWidth: 240, lineHeight: 1.5 }}>
+                    Connect your Apollo account to turn these roles into real people with work
+                    emails. It runs on your own Apollo credits.
+                  </p>
+                  <Link
+                    href="/founder/executive"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4, color: blue,
+                      fontSize: 13, fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Connect Apollo <ArrowRight size={13} />
+                  </Link>
+                </div>
+              )}
+            </SectionCard>
+          )}
+
           <SectionCard title={`Leads${leads ? ` (${leads.length})` : ''}`} noPadding>
             {leads === null ? (
               <div style={{ padding: 16, display: 'grid', gap: 10 }}>
@@ -168,66 +262,16 @@ export default function LeadsPage() {
             ) : (
               <div>
                 {leads.map(l => (
-                  <div
+                  <LeadRow
                     key={l.id}
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 20px',
-                      borderTop: `1px solid ${bdr}`, opacity: l.status === 'dead' ? 0.55 : 1,
-                    }}
-                  >
-                    {l.score !== null && (
-                      <div
-                        title="Fit score from this cycle's ranking"
-                        style={{
-                          flexShrink: 0, minWidth: 34, textAlign: 'center', padding: '3px 0',
-                          borderRadius: 6, background: alpha(blue, 0.08), color: blue,
-                          fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {l.score}
-                      </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ color: ink, fontSize: 14, fontWeight: 600 }}>
-                        {l.company}
-                        {l.title && <span style={{ color: muted, fontWeight: 400 }}> · {l.title}</span>}
-                      </div>
-                      {l.rationale && (
-                        <div style={{ color: muted, fontSize: 12.5, marginTop: 3, lineHeight: 1.5 }}>
-                          {l.rationale}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                        <select
-                          value={l.status}
-                          disabled={busyId === l.id}
-                          onChange={e => void setStatus(l.id, e.target.value as Lead['status'])}
-                          aria-label={`Status for ${l.company}`}
-                          style={{
-                            padding: '2px 6px', borderRadius: 5, border: `1px solid ${bdr}`,
-                            background: surf, color: STATUS_COLOR[l.status], fontSize: 11.5,
-                            fontWeight: 600, fontFamily: 'inherit', textTransform: 'capitalize',
-                          }}
-                        >
-                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        {l.source === 'ai_research' && (
-                          <span style={{ color: muted, fontSize: 11 }}>found by Patel</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => void removeLead(l.id, l.company)}
-                      disabled={busyId === l.id}
-                      aria-label={`Remove ${l.company}`}
-                      style={{
-                        background: 'none', border: 'none', cursor: 'pointer', padding: 6,
-                        color: muted, opacity: busyId === l.id ? 0.5 : 1, flexShrink: 0,
-                      }}
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                    lead={l}
+                    selected={selected.has(l.id)}
+                    busy={busyId === l.id}
+                    onToggle={() => toggle(l.id)}
+                    onSetStatus={s => void setStatus(l.id, s)}
+                    onPromote={() => void promote(l.id, l.company)}
+                    onRemove={() => void removeLead(l.id, l.company)}
+                  />
                 ))}
               </div>
             )}

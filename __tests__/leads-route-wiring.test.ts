@@ -78,6 +78,52 @@ describe('leads never become email recipients by accident', () => {
   })
 })
 
+describe('promotion is the only bridge from a lead to a contact', () => {
+  const promote = read('app/api/leads/[id]/promote/route.ts')
+
+  it('refuses to promote a lead without a verified email', () => {
+    // An unverified address is exactly the fabrication assertRecipientsInContext exists to catch.
+    // Promoting one would launder a guess into the recipient list.
+    expect(promote).toContain("email_status !== 'verified'")
+  })
+
+  it('is the only place on the lead path that touches the founder_contacts table', () => {
+    // The invariant the whole lead/contact separation rests on. If a second writer ever appears
+    // — an Action, an enrichment side effect, a bulk import — the founder-vouched guarantee is
+    // gone and this test is how we find out. Matches actual table access, not prose: several of
+    // these files legitimately DISCUSS founder_contacts in their headers, which is a good thing.
+    const mustNotTouch = ['app/api/leads/enrich/route.ts', 'lib/entities/leads.ts',
+      'lib/connectors/apollo/connector.ts', 'app/api/leads/route.ts']
+    for (const path of mustNotTouch) {
+      expect(read(path)).not.toMatch(/from\(\s*['"]founder_contacts['"]\s*\)/)
+    }
+    expect(promote).toMatch(/from\(\s*['"]founder_contacts['"]\s*\)/)
+  })
+
+  it('scopes both the read and the write to the caller', () => {
+    const scoped = promote.match(/\.eq\('founder_id', auth\.user\.id\)/g) ?? []
+    expect(scoped.length).toBeGreaterThanOrEqual(2)
+    expect(promote).toContain('founder_id: auth.user.id')
+  })
+})
+
+describe('enrichment cannot run itself', () => {
+  it('nothing in the rhythm or the registry reaches the Apollo connector', () => {
+    // Enrichment spends the founder's credits, and ADR-004 names spend as needing a checkpoint.
+    // The founder's click IS that checkpoint, which only holds while no autonomous caller exists.
+    for (const path of ['lib/rhythm/run.ts', 'lib/actions/generate.ts', 'lib/registry/index.ts']) {
+      expect(read(path)).not.toContain('apollo')
+    }
+  })
+
+  it('the enrich route caps how much one click can spend', () => {
+    const enrich = read('app/api/leads/enrich/route.ts')
+    expect(enrich).toContain('MAX_PER_REQUEST')
+    // Already-enriched leads are skipped rather than re-paid for.
+    expect(enrich).toContain("eq('email_status', 'none')")
+  })
+})
+
 describe('the door to /founder/leads exists', () => {
   it('LeadsPanel links to the full page', () => {
     const panel = read('features/executive/components/LeadsPanel.tsx')

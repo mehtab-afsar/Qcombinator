@@ -39,6 +39,8 @@ function describeScope(scope: string): string {
   if (scope === 'read_only') return 'Read your subscriptions, customers and charges. It cannot move money or change anything.'
   if (scope === 'insight:read' || scope === 'query:read') return 'Read your product analytics and insights.'
   if (scope === 'dashboard:read') return 'Read your dashboards. It cannot create or change anything.'
+  if (scope === 'people:read') return 'Look up real people and their work email addresses, using your Apollo credits.'
+  if (scope === 'organizations:read') return 'Look up companies. It cannot change anything in Apollo.'
   return scope
 }
 
@@ -48,6 +50,9 @@ export function ConnectorsPanel() {
   const [loaded, setLoaded] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Which provider's key form is open, and what's typed in it — API-key providers only. */
+  const [keyFor, setKeyFor] = useState<string | null>(null)
+  const [keyInput, setKeyInput] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -85,6 +90,33 @@ export function ConnectorsPanel() {
       window.location.href = data.url // hand off to Google
     } catch {
       setError('Could not reach the server.')
+      setBusy(null)
+    }
+  }
+
+  /**
+   * The API-key path. Apollo is the first provider with no OAuth handshake to redirect into —
+   * the founder holds a key and hands it over — so `connect()`'s redirect has nothing to redirect
+   * to. Its own route verifies the key with Apollo before storing it, so an invalid key fails
+   * here rather than silently at the moment credits get spent.
+   */
+  async function connectWithKey(provider: string) {
+    setBusy(provider)
+    setError(null)
+    try {
+      const res = await fetch(`/api/connectors/${provider}/key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: keyInput.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Could not connect.'); return }
+      setKeyInput('')
+      setKeyFor(null)
+      await load()
+    } catch {
+      setError('Could not reach the server.')
+    } finally {
       setBusy(null)
     }
   }
@@ -165,11 +197,53 @@ export function ConnectorsPanel() {
                         {grant?.accountEmail && <strong style={{ color: ink }}>{grant.accountEmail} — </strong>}
                         {(grant?.scopes ?? scopes).map(describeScope).join(' ')}
                       </p>
+
+                      {/* API-key providers get a form instead of a redirect — there is no
+                          handshake to hand off to. Only ever rendered for the one provider whose
+                          form is open. */}
+                      {!grant && keyFor === provider && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                          <input
+                            type="password"
+                            value={keyInput}
+                            onChange={e => setKeyInput(e.target.value)}
+                            placeholder="Paste your API key"
+                            aria-label={`${branding?.label ?? provider} API key`}
+                            style={{
+                              flex: 1, minWidth: 200, padding: '7px 10px', borderRadius: radius.sm,
+                              border: `1px solid ${bdr}`, background: bg, color: ink,
+                              fontSize: 13, fontFamily: 'inherit',
+                            }}
+                          />
+                          <Button
+                            variant="primary" size="sm"
+                            loading={busy === provider}
+                            disabled={keyInput.trim().length < 10}
+                            onClick={() => void connectWithKey(provider)}
+                          >
+                            Save key
+                          </Button>
+                          {branding?.keyHint && (
+                            <span style={{ color: muted, fontSize: 12, width: '100%' }}>
+                              Find it in {branding.keyHint}. It&rsquo;s stored encrypted and only
+                              used for lookups you trigger.
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {grant ? (
                       <Button variant="secondary" size="sm" loading={busy === provider} onClick={() => void disconnect(provider)}>
                         Disconnect
+                      </Button>
+                    ) : branding?.auth === 'api_key' ? (
+                      <Button
+                        variant={keyFor === provider ? 'secondary' : 'primary'}
+                        size="sm"
+                        onClick={() => { setKeyFor(keyFor === provider ? null : provider); setKeyInput('') }}
+                      >
+                        {keyFor === provider ? 'Cancel' : 'Connect'}
                       </Button>
                     ) : (
                       <Button variant="primary" size="sm" loading={busy === provider} onClick={() => void connect(provider)}>

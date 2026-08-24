@@ -19,6 +19,7 @@ import * as slackOauth from './slack/oauth'
 import * as gmailReadOauth from './gmail/read-oauth'
 import * as stripeOauth from './stripe/oauth'
 import * as posthogOauth from './posthog/oauth'
+import * as apolloOauth from './apollo/oauth'
 import { ConnectorError } from './types'
 import type { ExchangedTokens } from './gmail/google-oauth'
 
@@ -60,6 +61,17 @@ const OAUTH_PROVIDERS: Readonly<Record<string, OAuthProvider>> = {
     verifyState: posthogOauth.verifyState,
     exchangeCode: (code, required, state) => posthogOauth.exchangeCode(code, required, state),
     mintAccessToken: posthogOauth.mintAccessToken,
+  },
+  // ⚠️ NOT AN OAUTH PROVIDER — Apollo authenticates with an API key, and its entry here exists
+  // solely because `resolveGrant` calls `mintAccessToken()` on EVERY use of every grant. Omit
+  // this and resolveGrant throws `unknown_provider`, which its own catch reads as "the provider
+  // refused the refresh" and marks the founder's grant expired — a connection that silently
+  // kills itself on first use. The three handshake members throw loudly; see ./apollo/oauth.ts.
+  apollo: {
+    authorizeUrl: apolloOauth.authorizeUrl,
+    verifyState: apolloOauth.verifyState,
+    exchangeCode: apolloOauth.exchangeCode,
+    mintAccessToken: apolloOauth.mintAccessToken,
   },
 }
 

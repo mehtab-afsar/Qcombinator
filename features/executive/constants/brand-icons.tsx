@@ -74,3 +74,18 @@ export function SlackIcon({ size }: BrandIconProps): ReactElement {
     </svg>
   )
 }
+
+/**
+ * Apollo.io. Their published mark is a wordmark rather than a distributable glyph, so this is a
+ * neutral geometric stand-in in Apollo's brand blue — honest about being a placeholder rather
+ * than a bad trace of someone's logo. Takes `color` like every other icon here so the panel's
+ * brand tint still applies.
+ */
+export function ApolloIcon({ size, color }: BrandIconProps): ReactElement {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9.25" stroke={color} strokeWidth="1.5" />
+      <circle cx="12" cy="12" r="3.25" fill={color} />
+    </svg>
+  )
+}

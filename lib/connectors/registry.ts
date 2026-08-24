@@ -14,6 +14,7 @@ import { slackConnector } from './slack/connector'
 import { gmailReadConnector } from './gmail/read'
 import { stripeConnector } from './stripe/connector'
 import { posthogConnector } from './posthog/connector'
+import { apolloConnector } from './apollo/connector'
 import { ConnectorError, type Connector } from './types'
 
 const CONNECTORS: Readonly<Record<string, Connector>> = {
@@ -22,6 +23,7 @@ const CONNECTORS: Readonly<Record<string, Connector>> = {
   gmail_read: gmailReadConnector,
   stripe: stripeConnector,
   posthog: posthogConnector,
+  apollo: apolloConnector,
 }
 
 /**

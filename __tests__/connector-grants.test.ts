@@ -224,4 +224,23 @@ describe('resolve dispatches to the PROVIDER-OWNED credential mint, not always G
     expect(refreshAccessToken).not.toHaveBeenCalled()
     expect(slackMintAccessToken).not.toHaveBeenCalled()
   })
+
+  it('resolving an apollo grant hands back the stored API KEY, unchanged', async () => {
+    // ⚠️ Apollo is the first provider with no OAuth exchange: the durable credential and the live
+    // one are the same string. This file's own header records why that distinction matters — a
+    // refresh-vs-access-token mismatch reached production once because the vault was mocked as a
+    // single string. The pass-through in apollo/oauth.ts is exactly the shape that could
+    // reintroduce it, so the key coming back byte-identical is asserted, not assumed.
+    //
+    // NOT mocked, deliberately, unlike the other three providers above: there is no network call
+    // to stub, and the real pass-through is the thing under test.
+    const grant = await resolveGrant(
+      fakeAdmin({ row: activeRow({ provider: 'apollo', scopes: ['people:read'], token_ref: 'ref-1' }) }),
+      'f1',
+      'apollo',
+    )
+    expect(grant.accessToken).toBe('ya29.TOKEN')
+    expect(refreshAccessToken).not.toHaveBeenCalled()
+    expect(slackMintAccessToken).not.toHaveBeenCalled()
+  })
 })
