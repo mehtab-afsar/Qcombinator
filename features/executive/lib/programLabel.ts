@@ -13,3 +13,8 @@ export function programName(programTemplateId: string | null | undefined): strin
   // same defensive fallback app/api/assets/route.ts already uses for the same reason.
   try { return getProgram(programTemplateId).name } catch { return programTemplateId }
 }
+
+/** A Program's one-line objective, by Registry id — same defensive fallback as programName. */
+export function programObjective(programTemplateId: string): string | null {
+  try { return getProgram(programTemplateId).objective } catch { return null }
+}

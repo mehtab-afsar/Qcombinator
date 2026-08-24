@@ -380,6 +380,36 @@ describe('every P001 Action composes — the Story 3 prerequisite', () => {
   })
 })
 
+// ─── P016 — the second Product Program, same guarantee as P001's own ──────────
+
+describe('every P016 Asset and Action composes — same guarantee P001 gets, applied to a new Program', () => {
+  const p016 = (over: Partial<ComposeInput> = {}): ComposeInput =>
+    ({ executiveId: 'product', programId: 'P016', context, executionId: 'exec_test_1', ...over })
+
+  it.each(getProgram('P016').assets)('asset %s composes all four layers with real instruction text', (assetId) => {
+    const pkg = composePrompt(p016({ assetId }))
+    expect(pkg.layers).toHaveLength(4)
+    const layer3 = pkg.layers.find(l => l.name === 'asset_action_instructions')!
+    expect(layer3.text.length).toBeGreaterThan(200)
+  })
+
+  it.each(getProgram('P016').actions)('action %s composes all four layers with real instruction text', (actionId) => {
+    const pkg = composePrompt(p016({ actionId }))
+    expect(pkg.layers).toHaveLength(4)
+    const layer3 = pkg.layers.find(l => l.name === 'asset_action_instructions')!
+    expect(layer3.sourceRef).toBe(getAction(actionId).instructionsRef)
+    expect(layer3.text.length).toBeGreaterThan(200)
+    expect(layer3.text).toContain(actionId)
+  })
+
+  it('the Program Prompt itself resolves, not just its Assets/Actions', () => {
+    const pkg = composePrompt(p016({ assetId: 'AS054' }))
+    const layer2 = pkg.layers.find(l => l.name === 'program_prompt')!
+    expect(layer2.sourceRef).toBe(getProgram('P016').programPromptRef)
+    expect(layer2.text).toContain('P016')
+  })
+})
+
 // ─── Never a silent empty layer ───────────────────────────────────────────────
 
 describe('an unregistered prompt ref still throws', () => {

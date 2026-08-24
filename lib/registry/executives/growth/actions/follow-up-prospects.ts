@@ -16,12 +16,18 @@ import type { ActionDef } from '../../../types'
  *
  * DERIVED, NOT SEEDED — the workbook's Action Registry sheet is empty; only
  * the name came from the Program Registry.
+ *
+ * `dependsOn: 'monitor_and_classify_responses'` — chains the AI SDR loop one step further
+ * (see generate-personalized-outreach.ts for the first such link on this Program): the
+ * follow-up message drafted here reads the real classification just produced, instead of
+ * reasoning about a reply's interest level from scratch.
  */
 export const FOLLOW_UP_PROSPECTS: ActionDef = {
   id: 'follow_up_prospects',
   program: 'P005',
   name: 'Follow-up Prospects',
   kind: 'oneoff',
+  dependsOn: 'monitor_and_classify_responses',
   irreversible: false,
   instructionsRef: 'follow_up_prospects',
 }

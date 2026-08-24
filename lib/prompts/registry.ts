@@ -25,6 +25,7 @@ import { P006_SUCCESS_PROMPT } from './executives/growth/programs/p006'
 import { P008_INTEL_PROMPT } from './executives/growth/programs/p008'
 import { P009_REVIEW_PROMPT } from './executives/operations/programs/p009'
 import { P015_VALIDATE_PROMPT } from './executives/product/programs/p015'
+import { P016_PRODUCT_PROMPT } from './executives/product/programs/p016'
 import { P023_MODEL_PROMPT } from './executives/finance/programs/p023'
 import { AS001_ICP_PROFILES_PROMPT } from './executives/growth/assets/as001'
 import { AS002_PAINS_GAINS_PROMPT } from './executives/growth/assets/as002'
@@ -52,6 +53,11 @@ import { AS045_PROBLEM_VALIDATION_REPORT_PROMPT } from './executives/product/ass
 import { AS046_PRODUCT_FEEDBACK_LOG_PROMPT } from './executives/product/assets/as046'
 import { AS047_FEATURE_PRIORITISATION_MATRIX_PROMPT } from './executives/product/assets/as047'
 import { AS048_VALIDATION_ROADMAP_PROMPT } from './executives/product/assets/as048'
+import { AS054_PRODUCT_VISION_PROMPT } from './executives/product/assets/as054'
+import { AS055_PRODUCT_ROADMAP_PROMPT } from './executives/product/assets/as055'
+import { AS056_PRODUCT_REQUIREMENTS_DOCUMENT_PROMPT } from './executives/product/assets/as056'
+import { AS057_PRODUCT_SUCCESS_METRICS_PROMPT } from './executives/product/assets/as057'
+import { AS058_PRODUCT_BACKLOG_PROMPT } from './executives/product/assets/as058'
 import { AS049_FINANCIAL_MODEL_PROMPT } from './executives/finance/assets/as049'
 import { AS050_BUDGET_PROMPT } from './executives/finance/assets/as050'
 import { AS051_CASH_FLOW_FORECAST_PROMPT } from './executives/finance/assets/as051'
@@ -108,6 +114,11 @@ import { PRIORITIZE_FEATURES_PROMPT } from './executives/product/actions/priorit
 import { VALIDATE_CUSTOMER_PROBLEM_PROMPT } from './executives/product/actions/validate-customer-problem'
 import { SYNTHESIZE_CUSTOMER_FEEDBACK_PROMPT } from './executives/product/actions/synthesize-customer-feedback'
 import { APPROVE_VALIDATION_ROADMAP_PROMPT } from './executives/product/actions/approve-validation-roadmap'
+import { DEFINE_PRODUCT_VISION_PROMPT } from './executives/product/actions/define-product-vision'
+import { PLAN_PRODUCT_ROADMAP_PROMPT } from './executives/product/actions/plan-product-roadmap'
+import { PRIORITIZE_BACKLOG_PROMPT } from './executives/product/actions/prioritize-backlog'
+import { DRAFT_PRD_PROMPT } from './executives/product/actions/draft-prd'
+import { REVIEW_SUCCESS_METRICS_PROMPT } from './executives/product/actions/review-success-metrics'
 import { BUILD_FINANCIAL_MODEL_PROMPT } from './executives/finance/actions/build-financial-model'
 import { UPDATE_BUDGET_PROMPT } from './executives/finance/actions/update-budget'
 import { RUN_SCENARIO_ANALYSIS_PROMPT } from './executives/finance/actions/run-scenario-analysis'
@@ -155,6 +166,7 @@ const PROGRAM_PROMPTS: Readonly<Record<string, string>> = {
   P008: P008_INTEL_PROMPT,
   P009: P009_REVIEW_PROMPT,
   P015: P015_VALIDATE_PROMPT,
+  P016: P016_PRODUCT_PROMPT,
   P023: P023_MODEL_PROMPT,
 }
 
@@ -219,6 +231,11 @@ const PROGRAM_PROMPTS: Readonly<Record<string, string>> = {
  * Instructions (AS049-AS053) were authored here as well, in the same
  * newly-minted-id situation as AS043-AS048 (see
  * `lib/registry/executives/finance/programs/p023-model.ts`).
+ * Same story again for P016's five (define_product_vision, plan_product_roadmap,
+ * prioritize_backlog, draft_prd, review_success_metrics) — and P016's Program Prompt itself was
+ * authored here too, for the same reason (see p016.ts's header). P016's five Asset Instructions
+ * (AS054-AS058) were authored here as well, in the same newly-minted-id situation as
+ * AS043-AS048/AS049-AS053 (see `lib/registry/executives/product/programs/p016-product.ts`).
  */
 const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   AS001: AS001_ICP_PROFILES_PROMPT,
@@ -247,6 +264,11 @@ const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   AS046: AS046_PRODUCT_FEEDBACK_LOG_PROMPT,
   AS047: AS047_FEATURE_PRIORITISATION_MATRIX_PROMPT,
   AS048: AS048_VALIDATION_ROADMAP_PROMPT,
+  AS054: AS054_PRODUCT_VISION_PROMPT,
+  AS055: AS055_PRODUCT_ROADMAP_PROMPT,
+  AS056: AS056_PRODUCT_REQUIREMENTS_DOCUMENT_PROMPT,
+  AS057: AS057_PRODUCT_SUCCESS_METRICS_PROMPT,
+  AS058: AS058_PRODUCT_BACKLOG_PROMPT,
   AS049: AS049_FINANCIAL_MODEL_PROMPT,
   AS050: AS050_BUDGET_PROMPT,
   AS051: AS051_CASH_FLOW_FORECAST_PROMPT,
@@ -303,6 +325,11 @@ const INSTRUCTION_PROMPTS: Readonly<Record<string, string>> = {
   validate_customer_problem: VALIDATE_CUSTOMER_PROBLEM_PROMPT,
   synthesize_customer_feedback: SYNTHESIZE_CUSTOMER_FEEDBACK_PROMPT,
   approve_validation_roadmap: APPROVE_VALIDATION_ROADMAP_PROMPT,
+  define_product_vision: DEFINE_PRODUCT_VISION_PROMPT,
+  plan_product_roadmap: PLAN_PRODUCT_ROADMAP_PROMPT,
+  prioritize_backlog: PRIORITIZE_BACKLOG_PROMPT,
+  draft_prd: DRAFT_PRD_PROMPT,
+  review_success_metrics: REVIEW_SUCCESS_METRICS_PROMPT,
   build_financial_model: BUILD_FINANCIAL_MODEL_PROMPT,
   update_budget: UPDATE_BUDGET_PROMPT,
   run_scenario_analysis: RUN_SCENARIO_ANALYSIS_PROMPT,

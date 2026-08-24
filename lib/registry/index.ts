@@ -39,6 +39,7 @@ import { P006_SUCCESS } from './executives/growth/programs/p006-success'
 import { P008_INTEL } from './executives/growth/programs/p008-intel'
 import { P009_REVIEW } from './executives/operations/programs/p009-review'
 import { P015_VALIDATE } from './executives/product/programs/p015-validate'
+import { P016_PRODUCT } from './executives/product/programs/p016-product'
 import { P023_MODEL } from './executives/finance/programs/p023-model'
 
 import { AS001_ICP_PROFILES } from './executives/growth/assets/as001-icp'
@@ -67,6 +68,11 @@ import { AS045_PROBLEM_VALIDATION_REPORT } from './executives/product/assets/as0
 import { AS046_PRODUCT_FEEDBACK_LOG } from './executives/product/assets/as046-product-feedback-log'
 import { AS047_FEATURE_PRIORITISATION_MATRIX } from './executives/product/assets/as047-feature-prioritisation-matrix'
 import { AS048_VALIDATION_ROADMAP } from './executives/product/assets/as048-validation-roadmap'
+import { AS054_PRODUCT_VISION } from './executives/product/assets/as054-product-vision'
+import { AS055_PRODUCT_ROADMAP } from './executives/product/assets/as055-product-roadmap'
+import { AS056_PRODUCT_REQUIREMENTS_DOCUMENT } from './executives/product/assets/as056-product-requirements-document'
+import { AS057_PRODUCT_SUCCESS_METRICS } from './executives/product/assets/as057-product-success-metrics'
+import { AS058_PRODUCT_BACKLOG } from './executives/product/assets/as058-product-backlog'
 import { AS049_FINANCIAL_MODEL } from './executives/finance/assets/as049-financial-model'
 import { AS050_BUDGET } from './executives/finance/assets/as050-budget'
 import { AS051_CASH_FLOW_FORECAST } from './executives/finance/assets/as051-cash-flow-forecast'
@@ -127,6 +133,12 @@ import { VALIDATE_CUSTOMER_PROBLEM } from './executives/product/actions/validate
 import { SYNTHESIZE_CUSTOMER_FEEDBACK } from './executives/product/actions/synthesize-customer-feedback'
 import { APPROVE_VALIDATION_ROADMAP } from './executives/product/actions/approve-validation-roadmap'
 
+import { DEFINE_PRODUCT_VISION } from './executives/product/actions/define-product-vision'
+import { PLAN_PRODUCT_ROADMAP } from './executives/product/actions/plan-product-roadmap'
+import { PRIORITIZE_BACKLOG } from './executives/product/actions/prioritize-backlog'
+import { DRAFT_PRD } from './executives/product/actions/draft-prd'
+import { REVIEW_SUCCESS_METRICS } from './executives/product/actions/review-success-metrics'
+
 import { BUILD_FINANCIAL_MODEL } from './executives/finance/actions/build-financial-model'
 import { UPDATE_BUDGET } from './executives/finance/actions/update-budget'
 import { RUN_SCENARIO_ANALYSIS } from './executives/finance/actions/run-scenario-analysis'
@@ -150,6 +162,7 @@ const PROGRAMS: readonly ProgramTemplate[] = [
   P008_INTEL,
   P009_REVIEW,
   P015_VALIDATE,
+  P016_PRODUCT,
   P023_MODEL,
 ]
 
@@ -180,6 +193,11 @@ const ASSETS: readonly AssetDef[] = [
   AS046_PRODUCT_FEEDBACK_LOG,
   AS047_FEATURE_PRIORITISATION_MATRIX,
   AS048_VALIDATION_ROADMAP,
+  AS054_PRODUCT_VISION,
+  AS055_PRODUCT_ROADMAP,
+  AS056_PRODUCT_REQUIREMENTS_DOCUMENT,
+  AS057_PRODUCT_SUCCESS_METRICS,
+  AS058_PRODUCT_BACKLOG,
   AS049_FINANCIAL_MODEL,
   AS050_BUDGET,
   AS051_CASH_FLOW_FORECAST,
@@ -239,6 +257,11 @@ const ACTIONS: readonly ActionDef[] = [
   VALIDATE_CUSTOMER_PROBLEM,
   SYNTHESIZE_CUSTOMER_FEEDBACK,
   APPROVE_VALIDATION_ROADMAP,
+  DEFINE_PRODUCT_VISION,
+  PLAN_PRODUCT_ROADMAP,
+  PRIORITIZE_BACKLOG,
+  DRAFT_PRD,
+  REVIEW_SUCCESS_METRICS,
   BUILD_FINANCIAL_MODEL,
   UPDATE_BUDGET,
   RUN_SCENARIO_ANALYSIS,

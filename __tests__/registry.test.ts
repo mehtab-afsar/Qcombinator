@@ -588,6 +588,24 @@ describe('P005 actions — approval surface', () => {
       expect(action.kind).toBe('oneoff')
     }
   })
+
+  it('the AI SDR loop is fully chained end to end, except the one deliberate break', () => {
+    // find_target_companies -> find_decision_makers -> research_account ->
+    // score_and_prioritize_leads -> generate_personalized_outreach was the original chain
+    // (Milestone 1). This asserts it plus the three links added to finish the loop:
+    // monitor_and_classify_responses -> follow_up_prospects -> qualify_leads -> update_crm.
+    expect(getAction('find_decision_makers').dependsOn).toBe('find_target_companies')
+    expect(getAction('research_account').dependsOn).toBe('find_decision_makers')
+    expect(getAction('score_and_prioritize_leads').dependsOn).toBe('research_account')
+    expect(getAction('generate_personalized_outreach').dependsOn).toBe('score_and_prioritize_leads')
+    expect(getAction('follow_up_prospects').dependsOn).toBe('monitor_and_classify_responses')
+    expect(getAction('qualify_leads').dependsOn).toBe('follow_up_prospects')
+    expect(getAction('update_crm').dependsOn).toBe('qualify_leads')
+
+    // The one deliberate break: an irreversible Action's result isn't reliably available
+    // same-run (it waits on founder approval), so nothing chains off generate_personalized_outreach.
+    expect(getAction('monitor_and_classify_responses').dependsOn).toBeUndefined()
+  })
 })
 
 describe('P006 actions — approval surface', () => {
@@ -711,6 +729,71 @@ describe('P015 Validate', () => {
     for (const assetId of getProgram('P015').assets) {
       expect(getAsset(assetId).instructionsRef).toBeTruthy()
     }
+  })
+})
+
+describe('P016 Product', () => {
+  it('has exactly AS054-AS058 — five ids newly minted for this build (founder-authorized)', () => {
+    // Same situation as P015 and P023: the workbook's Asset Registry sheet never assigned
+    // P016's named assets a real id at all (its last real assignment was AS053, minted for
+    // P023). The founder confirmed building P016 next and the same minting approach — see
+    // lib/registry/executives/product/programs/p016-product.ts for the full reasoning.
+    expect(getProgram('P016').assets).toEqual(['AS054', 'AS055', 'AS056', 'AS057', 'AS058'])
+  })
+
+  it('is owned by product — the second Product Program — whose system prompt is still S004', () => {
+    expect(getProgram('P016').owner).toBe('product')
+    expect(getExecutive('product').systemPromptRef).toBe('S004')
+  })
+
+  it('is the natural sequel to P015 — both owned by product, in Registry order', () => {
+    expect(getExecutive('product').programs).toEqual(['P015', 'P016'])
+  })
+
+  it('carries the prompt refs the Composer needs (ADR-012)', () => {
+    expect(getProgram('P016').programPromptRef).toBe('P016')
+    for (const assetId of getProgram('P016').assets) {
+      expect(getAsset(assetId).instructionsRef).toBeTruthy()
+    }
+  })
+})
+
+describe('P016 actions — approval surface', () => {
+  it('has five actions: a real four-link chain plus one deliberately independent', () => {
+    expect(getProgram('P016').actions).toEqual([
+      'define_product_vision',
+      'plan_product_roadmap',
+      'prioritize_backlog',
+      'draft_prd',
+      'review_success_metrics',
+    ])
+  })
+
+  it('all five are internal, reversible and connector-free', () => {
+    // No roadmap/project-management or analytics-write Connector exists — only gmail, slack,
+    // gmail_read, stripe and posthog are registered (see lib/registry/types.ts's ConnectorId
+    // comment) — so every P016 action produces analysis, a plan or a draft rather than a live
+    // tool write. If a real Connector is added later, this is the test that should start
+    // failing.
+    for (const action of getProgram('P016').actions.map(getAction)) {
+      expect(action.irreversible).toBe(false)
+      expect(action.connector).toBeUndefined()
+    }
+  })
+
+  it('every action is one-off (ADR-020)', () => {
+    for (const action of getProgram('P016').actions.map(getAction)) {
+      expect(action.kind).toBe('oneoff')
+    }
+  })
+
+  it('is chained end to end except the one deliberate break, same pattern P005 finished', () => {
+    expect(getAction('define_product_vision').dependsOn).toBeUndefined()
+    expect(getAction('plan_product_roadmap').dependsOn).toBe('define_product_vision')
+    expect(getAction('prioritize_backlog').dependsOn).toBe('plan_product_roadmap')
+    expect(getAction('draft_prd').dependsOn).toBe('prioritize_backlog')
+    // Deliberately independent — reads broad traction data, not one specific prior step.
+    expect(getAction('review_success_metrics').dependsOn).toBeUndefined()
   })
 })
 
@@ -886,10 +969,10 @@ describe('executive roster (PRD §7.1)', () => {
     expect(listProgramsForExecutive('operations').map(p => p.id)).toEqual(['P009'])
   })
 
-  it('product now owns its first seeded program, P015', () => {
-    // The first Program ever seeded for an executive other than Growth or
-    // Operations.
-    expect(listProgramsForExecutive('product').map(p => p.id)).toEqual(['P015'])
+  it('product owns its two seeded programs, P015 and P016', () => {
+    // P015 was the first Program ever seeded for an executive other than Growth or
+    // Operations; P016 (vision/roadmap) is the natural sequel, seeded next.
+    expect(listProgramsForExecutive('product').map(p => p.id)).toEqual(['P015', 'P016'])
   })
 
   it('finance now owns its first seeded program, P023', () => {
@@ -986,6 +1069,7 @@ describe('adding a Program requires no new route (F05 acceptance) — the genera
       'AS013', 'AS014', 'AS015', 'AS016', 'AS017', 'AS018', 'AS019', 'AS020', 'AS021',
       'AS043', 'AS044', 'AS045', 'AS046', 'AS047', 'AS048',
       'AS049', 'AS050', 'AS051', 'AS052', 'AS053',
+      'AS054', 'AS055', 'AS056', 'AS057', 'AS058',
     ].map(getAsset)
   const seededActions = () =>
     [
@@ -999,6 +1083,7 @@ describe('adding a Program requires no new route (F05 acceptance) — the genera
       ...getProgram('P008').actions,
       ...getProgram('P009').actions,
       ...getProgram('P015').actions,
+      ...getProgram('P016').actions,
       ...getProgram('P023').actions,
     ].map(getAction)
 

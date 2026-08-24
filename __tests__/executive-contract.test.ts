@@ -13,6 +13,7 @@
 import { readFileSync } from 'fs'
 import {
   buildDraft,
+  buildActivateDraft,
   ContractError,
   mayProgramRun,
   type ExecutiveContract,
@@ -72,6 +73,40 @@ describe('buildDraft — from the founder\'s strategy', () => {
     // happily, and is blocked HERE — at the contract, not at the keyboard.
     expect(() => buildDraft(s)).toThrow(ContractError)
     expect(() => buildDraft(s)).toThrow(/mission and at least one priority/)
+  })
+})
+
+// ─── Activating one more Program directly, without a redraft ─────────────────
+
+describe('buildActivateDraft — the deterministic "also run this" shape', () => {
+  it('carries priorities/successMetrics over verbatim — this is not a redirect', () => {
+    const draft = buildActivateDraft(contract(), 'P002')
+    expect(draft.priorities).toEqual(['Win 10 design partners'])
+    expect(draft.successMetrics).toEqual(['£40k MRR'])
+  })
+
+  it('adds the Program id to activePrograms, keeping the ones already there', () => {
+    const draft = buildActivateDraft(contract(), 'P002')
+    expect(draft.activePrograms).toEqual(['P001', 'P002'])
+  })
+
+  it('does not duplicate a responsibilities entry when the owning executive is already named', () => {
+    // P002 (Brand Strategy) is also owned by 'growth', already named in the base fixture.
+    const draft = buildActivateDraft(contract(), 'P002')
+    expect(draft.responsibilities).toHaveLength(1)
+    expect(draft.responsibilities[0].executive).toBe('growth')
+  })
+
+  it('appends a new responsibilities entry for a Program owned by a different executive', () => {
+    // P015 (Validate) is owned by 'product', not yet named in the base fixture.
+    const draft = buildActivateDraft(contract(), 'P015')
+    expect(draft.responsibilities).toHaveLength(2)
+    expect(draft.responsibilities.map(r => r.executive)).toEqual(['growth', 'product'])
+  })
+
+  it('refuses to activate a Program that is already active', () => {
+    expect(() => buildActivateDraft(contract(), 'P001')).toThrow(ContractError)
+    expect(() => buildActivateDraft(contract(), 'P001')).toThrow(/already active/)
   })
 })
 

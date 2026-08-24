@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Check, Download, RefreshCw, ChevronDown } from 'lucide-react'
 import { bg, ink, bdr, muted, green, amber } from '@/lib/constants/colors'
 import { Bar } from '@/features/shared/components/Bar'
+import { AiUsageSummary } from '@/features/founder/components/AiUsageSummary'
 
 const FEATURES = [
   ['500 AI agent conversations / month',  '50 on Free'],
@@ -175,6 +176,8 @@ function BillingInner() {
             </div>
           </div>
         )}
+
+        <AiUsageSummary />
 
         {/* Upgrade — only on Free */}
         {!isPremium && !loading && (

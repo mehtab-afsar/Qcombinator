@@ -16,23 +16,24 @@ import type { Executive } from '../../types'
  * (`lib/prompts/executives/product/voice.ts`), and the invalid-pairing test still
  * fails for the same ownership reason as before, unchanged.
  *
- * `programs: ['P015']` — P015 — Validate is the first Product Program seeded for
- * real. Its six Assets (AS043–AS048) are newly minted ids, not read off the
- * workbook's Asset Registry sheet: that sheet only ever assigned ids through
- * AS042, so it never assigned any to Product's named assets. The founder was
- * asked directly and explicitly chose to mint AS043–AS048 now rather than leave
- * P015 asset-less — see
- * `lib/registry/executives/product/programs/p015-validate.ts` for the full
- * reasoning. P016–P022 remain unseeded — the workbook names their assets in
- * prose only, with no ids at all, and no founder decision has extended the
- * minted range past AS048.
+ * `programs: ['P015', 'P016']` — P015 Validate is the first Product Program seeded, P016 Product
+ * (vision/roadmap) the second, the natural sequel: once a problem and its fit are validated,
+ * P016 is where that evidence becomes a real vision, a sequenced roadmap, and concrete
+ * requirements. P015's six Assets (AS043–AS048) and P016's five (AS054–AS058) are both newly
+ * minted ids, not read off the workbook's Asset Registry sheet: that sheet only ever assigned
+ * ids through AS042, so it never assigned any to Product's named assets. The founder was asked
+ * directly and explicitly chose to mint AS043–AS048 for P015 — see
+ * `lib/registry/executives/product/programs/p015-validate.ts` — and confirmed building P016 next
+ * (over Operations/Finance) with the same minting approach, extending the range to AS058 — see
+ * `lib/registry/executives/product/programs/p016-product.ts` for the full reasoning. P017–P022
+ * remain unseeded — the workbook names their assets in prose only, with no ids at all.
  */
 export const PRODUCT: Executive = {
   id: 'product',
   name: 'Chief Technology Officer',
   motto: 'I build what the market will pay for.',
   domains: ['Product & Technology'],
-  programs: ['P015'],
+  programs: ['P015', 'P016'],
   systemPromptRef: 'S004',
   inheritsFrom: ['nova'],
 }

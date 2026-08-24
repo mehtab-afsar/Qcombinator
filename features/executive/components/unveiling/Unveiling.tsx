@@ -67,29 +67,6 @@ export function Unveiling({
   const { streaming, readText, readDone, proposal, error: proposeError, run } = useStreamedProposal()
   const startedProposing = useRef(false)
 
-  // Step 1: the read starts the moment we land here with nothing saved yet — no
-  // input asked first ("propose, don't ask" — UX_SPEC §1.2).
-  useEffect(() => {
-    if (step === 1 && !startedProposing.current) {
-      startedProposing.current = true
-      void run('/api/strategy/propose', {})
-    }
-  }, [step, run])
-
-  useEffect(() => {
-    if (proposal && step === 1) {
-      setCandidate(proposal)
-      setStep(2)
-    }
-  }, [proposal, step])
-
-  // Persists the moment there's something worth resuming — the initial proposal arriving, or a
-  // nudge revision (both already flow through setCandidate). Cleared once saveAndCommit succeeds
-  // below, at which point the server-persisted strategy is what a reload should resume from.
-  useEffect(() => {
-    if (step === 2 && candidate) saveUnveilingDraft(candidate)
-  }, [step, candidate])
-
   const saveAndCommit = useCallback(async (fields: Committed) => {
     setBusy(true)
     setError(null)
@@ -113,6 +90,36 @@ export function Unveiling({
       setBusy(false)
     }
   }, [])
+
+  // Step 1: the read starts the moment we land here with nothing saved yet — no
+  // input asked first ("propose, don't ask" — UX_SPEC §1.2).
+  useEffect(() => {
+    if (step === 1 && !startedProposing.current) {
+      startedProposing.current = true
+      void run('/api/strategy/propose', {})
+    }
+  }, [step, run])
+
+  // Founder feedback: don't gate on a "Sounds right" click before moving to the mandate — that
+  // click was only ever the SAVE action (saveAndCommit), never a decision anything downstream
+  // reads back. Auto-save the proposal the moment it's ready; saveAndCommit's own success path
+  // advances to step 3. Nothing about redirecting is lost: OneConfirm's "Revise direction" still
+  // reaches ProposedDirection/NudgeExchange later, once the resulting mandate is visible — a more
+  // informed moment to redirect from than blind pre-approval was.
+  useEffect(() => {
+    if (proposal && step === 1) {
+      setCandidate(proposal)
+      void saveAndCommit({ mission: proposal.mission, priorities: proposal.priorities, goals: proposal.goals })
+    }
+  }, [proposal, step, saveAndCommit])
+
+  // Persists the moment there's something worth resuming — a nudge revision, or the rare manual
+  // "revise direction" re-entry into step 2 (the automatic first pass above no longer stops here
+  // long enough to need this). Cleared once saveAndCommit succeeds, at which point the
+  // server-persisted strategy is what a reload should resume from.
+  useEffect(() => {
+    if (step === 2 && candidate) saveUnveilingDraft(candidate)
+  }, [step, candidate])
 
   async function confirm() {
     if (!localContract) return

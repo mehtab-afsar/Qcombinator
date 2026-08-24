@@ -45,6 +45,7 @@ import { ExecutiveRead } from '@/features/executive/components/ExecutiveRead'
 import { BeatHeading } from '@/features/executive/components/BeatHeading'
 import { ProgramTabBar } from '@/features/executive/components/ProgramTabBar'
 import { ProgramOverviewGrid } from '@/features/executive/components/ProgramOverviewGrid'
+import { AvailableProgramsPanel } from '@/features/executive/components/AvailableProgramsPanel'
 import { useProgramTabs } from '@/features/executive/hooks/useProgramTabs'
 import { useRhythmProgress } from '@/features/executive/hooks/useRhythmProgress'
 import { useAutoOpenLiveAsset } from '@/features/executive/hooks/useAutoOpenLiveAsset'
@@ -265,6 +266,10 @@ export default function ExecutiveDetailPage() {
                 />
               </motion.div>
             )}
+
+            <motion.div variants={sectionVariants}>
+              <AvailableProgramsPanel executiveId={executiveId} activePrograms={programs} />
+            </motion.div>
 
             <motion.div variants={sectionVariants}>
               <ConfirmStatus contract={contract} />

@@ -12,12 +12,17 @@ import type { ActionDef } from '../../../types'
  *
  * DERIVED, NOT SEEDED — the workbook's Action Registry sheet is empty; only
  * the name came from the Program Registry.
+ *
+ * `dependsOn: 'follow_up_prospects'` — the AI SDR chain's next link: scoring/tiering reads the
+ * actual follow-up plan just drafted (which itself already reflects the real reply
+ * classification), rather than tiering the lead in isolation.
  */
 export const QUALIFY_LEADS: ActionDef = {
   id: 'qualify_leads',
   program: 'P005',
   name: 'Qualify Leads',
   kind: 'oneoff',
+  dependsOn: 'follow_up_prospects',
   irreversible: false,
   instructionsRef: 'qualify_leads',
 }

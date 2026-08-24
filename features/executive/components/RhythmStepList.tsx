@@ -22,7 +22,7 @@ import type { StepState, StepKind, ProgressStep, RunProgress, RunSummary } from 
 /** Matches STEP_LIMIT_EXCEEDED in lib/rhythm/limits.ts — the circuit breaker's reason code. */
 const STEP_LIMIT_EXCEEDED = 'step_limit_exceeded'
 
-type DocsProgress = { done: number; total: number; currentLabel: string | null; finished: boolean }
+type DocsProgress = { steps: ProgressStep[]; done: number; total: number; currentLabel: string | null; finished: boolean }
 
 export function Empty() {
   return (
@@ -71,6 +71,20 @@ export function StatusLine({
       <Line color={red}>
         Stopped early — {done} of {total} finished. What did complete is saved; running again
         retries the rest.
+      </Line>
+    )
+  }
+  // A step can fail while OTHER steps/programs in the same cycle keep going — the run stays
+  // `status: 'running'` until everything finishes, so without this check the line below would
+  // just say "Working…" forever and never mention it. That step won't retry itself (run.ts marks
+  // it 'failed' permanently for this run); it becomes retryable once the whole cycle concludes
+  // and the "Run now" button reappears (RhythmPanel.tsx) — say so, don't leave it unexplained.
+  const failedStep = docs.steps.find(s => s.state === 'failed')
+  if (status === 'running' && failedStep) {
+    return (
+      <Line color={amber}>
+        {failedStep.label} hit a snag — the rest of this cycle keeps going. It&rsquo;ll be ready
+        to retry once this cycle finishes.
       </Line>
     )
   }

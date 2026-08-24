@@ -12,12 +12,17 @@ import type { ActionDef } from '../../../types'
  *
  * DERIVED, NOT SEEDED — the workbook's Action Registry sheet is empty; only
  * the name came from the Program Registry.
+ *
+ * `dependsOn: 'qualify_leads'` — the AI SDR chain's last link: the recommended pipeline-stage
+ * change reads the real qualification tier just produced, so the record update reflects what
+ * actually happened this cycle instead of a guess made independently of it.
  */
 export const UPDATE_CRM: ActionDef = {
   id: 'update_crm',
   program: 'P005',
   name: 'Update CRM',
   kind: 'oneoff',
+  dependsOn: 'qualify_leads',
   irreversible: false,
   instructionsRef: 'update_crm',
 }

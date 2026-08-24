@@ -323,6 +323,24 @@ export async function runNextStep(
   )
   await finishRun(admin, run.id, { status: anyFailed ? 'failed' : 'completed', stages })
 
+  // Before this, nothing ever told a founder a cycle finished — they only found out by opening
+  // the app. Reuses the existing notifications table/bell (features/founder/components/
+  // FounderSidebar.tsx) rather than a new channel. Deliberately its own try/catch, separate from
+  // the rest of this function: a notification failing must never make runNextStep itself fail —
+  // the cycle genuinely did finish regardless of whether anyone got told.
+  try {
+    await admin.from('notifications').insert({
+      user_id: run.founderId,
+      type: anyFailed ? 'cycle_failed' : 'cycle_completed',
+      title: anyFailed ? 'Your team hit a snag this cycle' : "Your team finished this week's cycle",
+      body: anyFailed
+        ? 'Some work completed; a few things need a look before the rest can run.'
+        : 'New documents and a fresh briefing are ready.',
+    })
+  } catch (err) {
+    log.warn('cycle-finish notification failed', { runId: run.id, err: (err as Error)?.message })
+  }
+
   // Counted from the run record rather than from local variables: this function returns after ONE
   // step, so a per-call tally would only ever describe the last step of a chained cycle.
   const done = Object.values(stages)

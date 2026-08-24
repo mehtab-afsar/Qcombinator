@@ -37,6 +37,8 @@ const TYPE_COLOR: Record<string, string> = {
   team_member_joined:  green,
   team_role_changed:   blue,
   team_member_removed: red,
+  cycle_completed:     green,
+  cycle_failed:        red,
 }
 
 // ─── type → icon — the single place a notification type is given an icon.
@@ -75,6 +77,8 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   team_member_joined:   UserPlus,
   team_role_changed:    UserCog,
   team_member_removed:  UserX,
+  cycle_completed:      CheckCircle2,
+  cycle_failed:         AlertTriangle,
 }
 
 function getAccent(type: string) {
@@ -167,6 +171,24 @@ export function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (
               }}
             >
               Open {toAgent ?? 'agent'} →
+            </Link>
+          )}
+
+          {/* Same deep-link pattern, for a finished/failed Operating Rhythm cycle — no single
+              executive to name (a cycle runs every contract-active Program together), so this
+              always points at the team overview rather than guessing one. */}
+          {(n.type === 'cycle_completed' || n.type === 'cycle_failed') && (
+            <Link
+              href={agentActionHref}
+              style={{
+                fontSize: 11, fontWeight: 600, color: n.type === 'cycle_failed' ? red : green,
+                background: `${n.type === 'cycle_failed' ? red : green}12`,
+                border: `1px solid ${n.type === 'cycle_failed' ? red : green}40`,
+                borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
+                display: 'inline-block',
+              }}
+            >
+              View →
             </Link>
           )}
 

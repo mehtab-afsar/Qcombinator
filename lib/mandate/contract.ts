@@ -268,9 +268,24 @@ export async function createDraft(
     }
   }
 
-  assertProgramsExist(draft.activePrograms)
-
   const existing = await getCurrentContract(supabase, founderId)
+  return insertDraftRow(supabase, founderId, strategy.id, existing, draft, document)
+}
+
+/**
+ * Retire the current contract row (if any) and insert a new draft — the one place this dance
+ * happens, shared by `createDraft`'s LLM-generated draft and `activateProgram`'s deterministic
+ * one below, so a future change to the retire/insert mechanics can't drift between the two paths.
+ */
+async function insertDraftRow(
+  supabase: SupabaseClient,
+  founderId: string,
+  strategyId: string,
+  existing: ExecutiveContract | null,
+  draft: ContractDraft,
+  document: string | null,
+): Promise<ExecutiveContract> {
+  assertProgramsExist(draft.activePrograms)
 
   if (existing) {
     const { error } = await supabase
@@ -289,7 +304,7 @@ export async function createDraft(
     .from('executive_contracts')
     .insert({
       founder_id: founderId,
-      strategy_id: strategy.id,
+      strategy_id: strategyId,
       epoch,
       version: (existing?.version ?? 0) + 1,
       is_current: true,
@@ -407,6 +422,64 @@ export async function newEpoch(
     )
   }
   return createDraft(supabase, founderId)
+}
+
+/**
+ * Pure — the deterministic draft shape for "also activate this Program," given the currently
+ * confirmed contract. Exported and unit-tested directly (same convention as `buildDraft`), so
+ * `activateProgram`'s only remaining job is the DB round-trip.
+ *
+ * @throws ContractError if `programId` is already active.
+ */
+export function buildActivateDraft(current: ExecutiveContract, programId: ProgramId): ContractDraft {
+  if (current.activePrograms.includes(programId)) {
+    throw new ContractError('That program is already active.')
+  }
+
+  const template = getProgram(programId)
+  const responsibilities = current.responsibilities.some(r => r.executive === template.owner)
+    ? current.responsibilities
+    : [...current.responsibilities, { executive: template.owner, mandate: template.objective }]
+
+  return {
+    priorities: current.priorities,
+    successMetrics: current.successMetrics,
+    responsibilities,
+    activePrograms: [...current.activePrograms, programId],
+  }
+}
+
+/**
+ * Turn on one more of an executive's Registry Programs directly — a founder-initiated
+ * structured action, not a mandate redraft. Today the only way to get another Program active is
+ * "Change direction" and hope the regenerated mandate happens to include it; this is the direct
+ * path.
+ *
+ * Deliberately deterministic, no LLM call: this is a structural add ("also run this"), not a
+ * change of direction, so nothing here should be left to a model's judgment (see
+ * `buildActivateDraft`). Draft and confirm happen together as one action — CLAUDE.md §1: "No
+ * approval gates on Programs" — not a second review step for something this small.
+ *
+ * `activePrograms` is otherwise immutable in place (ADR-003; enforced in Postgres by
+ * `executive_contracts_reject_content_edit`), so — same as `newEpoch` — this can only ever be a
+ * new epoch, never an edit.
+ */
+export async function activateProgram(
+  supabase: SupabaseClient,
+  founderId: string,
+  programId: ProgramId,
+): Promise<{ contract: ExecutiveContract; programs: ProgramInstance[] }> {
+  const current = await getCurrentContract(supabase, founderId)
+  if (!current) {
+    throw new ContractError('There is no mandate to add a program to.')
+  }
+  if (current.status !== 'confirmed') {
+    throw new ContractError('Your current mandate is still a draft — confirm it before activating another program.')
+  }
+
+  const draft = buildActivateDraft(current, programId)
+  const inserted = await insertDraftRow(supabase, founderId, current.strategyId, current, draft, null)
+  return confirmContract(supabase, founderId, inserted.id)
 }
 
 /**
