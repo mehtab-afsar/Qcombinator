@@ -425,7 +425,7 @@ export default function FounderSidebar() {
             </div>
             <DropSep />
             <DropItem href="/founder/settings"             icon={Settings}   label="Settings" />
-            <DropItem href="/founder/billing" icon={CreditCard} label="Subscription" />
+            <DropItem href="/founder/billing" icon={CreditCard} label="Subscription & AI usage" />
             <DropSep />
             <DropItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
           </Dropdown>
