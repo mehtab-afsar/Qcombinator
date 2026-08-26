@@ -100,23 +100,23 @@ export function Unveiling({
     }
   }, [step, run])
 
-  // Founder feedback: don't gate on a "Sounds right" click before moving to the mandate — that
-  // click was only ever the SAVE action (saveAndCommit), never a decision anything downstream
-  // reads back. Auto-save the proposal the moment it's ready; saveAndCommit's own success path
-  // advances to step 3. Nothing about redirecting is lost: OneConfirm's "Revise direction" still
-  // reaches ProposedDirection/NudgeExchange later, once the resulting mandate is visible — a more
-  // informed moment to redirect from than blind pre-approval was.
+  // The proposal lands on layer 2 and STOPS there, for the founder to accept ("Sounds right") or
+  // redirect ("Nudge this"). This was briefly auto-advanced straight to the mandate, on the theory
+  // that the accept click was only ever saveAndCommit and never a decision anything downstream
+  // read back. That was wrong on two counts: it skipped the one cheap moment a founder can
+  // redirect — before a ~90s mandate draft rather than after it — and it left the Thread rail
+  // marking "The direction" reached for a screen they were never shown.
   useEffect(() => {
     if (proposal && step === 1) {
       setCandidate(proposal)
-      void saveAndCommit({ mission: proposal.mission, priorities: proposal.priorities, goals: proposal.goals })
+      setStep(2)
     }
-  }, [proposal, step, saveAndCommit])
+  }, [proposal, step])
 
-  // Persists the moment there's something worth resuming — a nudge revision, or the rare manual
-  // "revise direction" re-entry into step 2 (the automatic first pass above no longer stops here
-  // long enough to need this). Cleared once saveAndCommit succeeds, at which point the
-  // server-persisted strategy is what a reload should resume from.
+  // Persists the moment there's something worth resuming — a reload while reviewing the proposed
+  // direction, a nudge revision, or a manual "revise direction" re-entry. Cleared once
+  // saveAndCommit succeeds, at which point the server-persisted strategy is what a reload should
+  // resume from.
   useEffect(() => {
     if (step === 2 && candidate) saveUnveilingDraft(candidate)
   }, [step, candidate])

@@ -16,29 +16,17 @@
  * risks) but only 4 short fields used to ever reach the founder — the rest was
  * generated, saved (`contract.document`), and thrown away. The ~77-90s wait was
  * real either way; this surfaces what it paid for instead of hiding it behind a
- * static "Hardening into your mandate…" caption.
+ * static "Hardening into your mandate…" caption. The wait itself is MandateDrafting's.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { ink, muted, amber, alpha } from '@/lib/constants/colors'
-import { Spinner } from '@/features/shared/components/Spinner'
 import { Button } from '@/features/shared/components/Button'
 import { pickReasoningSections } from '@/lib/mandate/document'
+import { MandateDrafting } from './MandateDrafting'
 import { MandateCard } from '../MandateCard'
 import type { Contract } from '../../types/executive.types'
-
-// Nothing here can be shown live token-by-token (composer/mandate.ts asks the model
-// to write the document whole, then a JSON tail — not structured for partial reads),
-// so a rotating caption is the same "the app is working, here's roughly on what"
-// signal already established for the analogous long wait in profile-builder's
-// upload loader (UPLOAD_MESSAGES) — reused pattern, not a second one invented here.
-const HARDENING_MESSAGES = [
-  'Reading your direction…',
-  'Weighing your objectives…',
-  'Choosing a pathway…',
-  'Assigning your team…',
-]
 
 export function MandateReveal({
   contract, mission, onHardened, onError,
@@ -52,7 +40,6 @@ export function MandateReveal({
 }) {
   const [drafting, setDrafting] = useState(!contract)
   const [regenerating, setRegenerating] = useState(false)
-  const [msgIdx, setMsgIdx] = useState(0)
   const [reasoningOpen, setReasoningOpen] = useState(false)
   // StrictMode/re-renders must not fire a second draft request while one is in flight.
   const requested = useRef(false)
@@ -96,20 +83,7 @@ export function MandateReveal({
     }
   }
 
-  useEffect(() => {
-    if (!drafting) return
-    const timer = setInterval(() => setMsgIdx(i => (i + 1) % HARDENING_MESSAGES.length), 2200)
-    return () => clearInterval(timer)
-  }, [drafting])
-
-  if (drafting || !contract) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0' }}>
-        <Spinner size="sm" color={muted} />
-        <span style={{ color: muted, fontSize: 14 }}>{HARDENING_MESSAGES[msgIdx]}</span>
-      </div>
-    )
-  }
+  if (drafting || !contract) return <MandateDrafting mission={mission} />
 
   const reasoning = pickReasoningSections(contract.document)
   // Only the deterministic fallback (lib/mandate/contract.ts's buildDraft) leaves `document`
