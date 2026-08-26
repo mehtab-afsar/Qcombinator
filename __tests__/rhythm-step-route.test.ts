@@ -29,8 +29,10 @@ global.fetch = mockFetch as unknown as typeof fetch
 // success or failure. Mocked so these tests observe threading/cleanup without touching real
 // Supabase writes (already covered by rhythm-streaming.test.ts).
 const mockOnDelta = jest.fn()
+const mockBegin = jest.fn()
 const mockFinish = jest.fn().mockResolvedValue(undefined)
-const mockCreateDeltaWriter = jest.fn((..._args: unknown[]) => ({ onDelta: mockOnDelta, finish: mockFinish }))
+const mockWriter = { begin: mockBegin, onDelta: mockOnDelta, finish: mockFinish }
+const mockCreateDeltaWriter = jest.fn((..._args: unknown[]) => mockWriter)
 jest.mock('@/lib/rhythm/streaming', () => ({ createDeltaWriter: (...args: unknown[]) => mockCreateDeltaWriter(...args) }))
 
 import { POST } from '@/app/api/rhythm/step/route'
@@ -120,12 +122,14 @@ describe('POST /api/rhythm/step — advancing and self-chaining', () => {
 })
 
 describe('POST /api/rhythm/step — PRD 2 Stage 2 Part B (live text for RhythmPanel)', () => {
-  it('threads a delta writer\'s onDelta into runNextStep as the 3rd argument', async () => {
+  it('threads the WHOLE delta writer into runNextStep, not just its onDelta', async () => {
+    // The writer object, because runNextStep must also be able to call begin(assetId) — passing
+    // the bare callback is what left live text with no owner in the first place.
     mockRunNextStep.mockResolvedValue({ done: false })
     await POST(request({ runId: RUN_ID }, { 'x-run-secret': SECRET }) as never)
 
     expect(mockCreateDeltaWriter).toHaveBeenCalledWith(expect.anything(), RUN_ID)
-    expect(mockRunNextStep).toHaveBeenCalledWith(expect.anything(), RUN_ID, mockOnDelta)
+    expect(mockRunNextStep).toHaveBeenCalledWith(expect.anything(), RUN_ID, mockWriter)
   })
 
   it('always clears the writer after a successful step — the next step must not inherit stale text', async () => {

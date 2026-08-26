@@ -272,3 +272,106 @@ describe('buildProgress — actionId + preview (lib/rhythm/preview.ts consumers)
     p.steps.forEach(step => expect(step.preview).toBeNull())
   })
 })
+
+// ─── The cross-executive leak: 'active' is a property of the RUN, not of a program ──────────
+
+describe('buildProgress — exactly one step is active across the WHOLE run', () => {
+  const P002_ASSETS = getProgram('P002').assets
+  const both = ['P001', 'P002'] as const
+  const actives = (p: ReturnType<typeof buildProgress>) => p.steps.filter(s => s.state === 'active')
+
+  /** A stage with every phase settled, so the cursor moves past this program entirely. */
+  const finished = (templateId: 'P001' | 'P002') => ({
+    assets: 'completed', briefing: 'completed', actions: 'completed',
+    assetsDone: [...getProgram(templateId).assets], assetsGenerated: 1,
+    actionsDone: [...getProgram(templateId).actions],
+  })
+
+  it('⚠️ THE REGRESSION: two active programs still yield ONE active step, not one each', () => {
+    // This is the bug a founder saw as "the COO and CTO tabs are writing documents too" — each
+    // program independently marked its own first unfinished asset active, and the unowned live
+    // text column then rendered the one genuinely-running program's words under all of them.
+    const p = buildProgress(run(), both, NOW)
+
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].templateId).toBe('P001')
+    expect(actives(p)[0].assetId).toBe(P001_ASSETS[0])
+  })
+
+  it('P002\'s steps are all pending while P001 is the one running', () => {
+    const p = buildProgress(run(), both, NOW)
+    expect(p.steps.filter(s => s.templateId === 'P002').every(s => s.state === 'pending')).toBe(true)
+  })
+
+  it('the cursor only reaches P002 once P001 is genuinely exhausted', () => {
+    const p = buildProgress(run({ stages: { P001: finished('P001') } }), both, NOW)
+
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].templateId).toBe('P002')
+    expect(actives(p)[0].assetId).toBe(P002_ASSETS[0])
+  })
+
+  it('phase order beats program order: P001\'s briefing outranks P002\'s first asset', () => {
+    const stages = { P001: { assets: 'completed', briefing: 'pending', assetsDone: [...P001_ASSETS], assetsGenerated: 1 } }
+    const p = buildProgress(run({ stages }), both, NOW)
+
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].kind).toBe('briefing')
+    expect(actives(p)[0].templateId).toBe('P001')
+  })
+
+  it('...and P001\'s next Action outranks P002 too', () => {
+    const stages = {
+      P001: {
+        assets: 'completed', briefing: 'completed', actions: 'pending',
+        assetsDone: [...P001_ASSETS], assetsGenerated: 1, actionsDone: [P001_ACTIONS[0]],
+      },
+    }
+    const p = buildProgress(run({ stages }), both, NOW)
+
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].kind).toBe('action')
+    expect(actives(p)[0].actionId).toBe(P001_ACTIONS[1])
+  })
+
+  it('a failed program hands the cursor on rather than holding it — and its briefing is not active', () => {
+    // The engine `continue`s to the next program here (run.ts), and its briefing is 'blocked',
+    // which reads as pending: it never ran, so calling it failed would be a lie.
+    const stages = { P001: { assets: 'failed', briefing: 'blocked', assetsDone: [], assetsGenerated: 0 } }
+    const p = buildProgress(run({ stages }), both, NOW)
+
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].templateId).toBe('P002')
+    expect(p.steps.find(s => s.templateId === 'P001' && s.kind === 'briefing')!.state).toBe('pending')
+  })
+
+  it('three programs — still exactly one', () => {
+    expect(actives(buildProgress(run(), ['P001', 'P002', 'P003'], NOW))).toHaveLength(1)
+  })
+
+  it('the CALLER\'s order is the authority, not the Registry\'s', () => {
+    // lib/rhythm/context.ts's orderPrograms exists to make the engine agree with this order.
+    const p = buildProgress(run(), ['P002', 'P001'], NOW)
+    expect(actives(p)[0].templateId).toBe('P002')
+  })
+
+  it('an unknown Program is skipped without consuming the cursor', () => {
+    const p = buildProgress(run(), ['P999', 'P001', 'P002'], NOW)
+    expect(actives(p)).toHaveLength(1)
+    expect(actives(p)[0].templateId).toBe('P001')
+  })
+
+  it('a finished run has NO active step at all', () => {
+    const p = buildProgress(run({ status: 'completed' }), both, NOW)
+    expect(actives(p)).toHaveLength(0)
+    expect(p.currentLabel).toBeNull()
+  })
+
+  it('a stalled run still shows which step it died on — that is the diagnostic', () => {
+    const stalled = run({ lastStepAt: new Date(NOW - STALE_AFTER_MS - 1000).toISOString() })
+    const p = buildProgress(stalled, both, NOW)
+
+    expect(p.stalled).toBe(true)
+    expect(actives(p)).toHaveLength(1)
+  })
+})

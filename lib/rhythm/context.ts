@@ -98,6 +98,35 @@ export interface StepContext {
   programs: ProgramInstance[]
 }
 
+/**
+ * Put the contract's Programs into the ONE authoritative run order: `contract.activePrograms`.
+ *
+ * getProgramsForContract issues a bare SELECT with no ORDER BY, and Postgres guarantees nothing
+ * about the order of such a result — it can shift with a plan change, a vacuum, or an updated
+ * row. lib/rhythm/progress.ts's view of "which step is running" walks `activePrograms` instead,
+ * so the two agreed only by luck. When they disagree the founder is shown the wrong step as
+ * active, which — before the ownership fix in lib/rhythm/streaming.ts — meant another
+ * executive's live document text rendered under their own.
+ *
+ * A Program not named in activePrograms sorts last, deterministically, and is never dropped:
+ * losing a Program from a run would be a far worse failure than running it late.
+ *
+ * Deliberately not solved with `.order('created_at')` on the query: confirm_executive_contract
+ * inserts every row in one statement so timestamps can tie, and it would establish a second
+ * ordering authority alongside activePrograms (CLAUDE.md §4, one source of truth per fact).
+ */
+export function orderPrograms(
+  programs: readonly ProgramInstance[],
+  activePrograms: readonly string[],
+): ProgramInstance[] {
+  const rank = new Map(activePrograms.map((id, i) => [id, i]))
+  return [...programs].sort(
+    (a, b) =>
+      (rank.get(a.templateId) ?? Number.MAX_SAFE_INTEGER) -
+      (rank.get(b.templateId) ?? Number.MAX_SAFE_INTEGER),
+  )
+}
+
 export async function buildStepContext(admin: SupabaseClient, run: RhythmRun): Promise<StepContext> {
   const contract = await getCurrentContract(admin, run.founderId)
   if (!contract || contract.status !== 'confirmed') {
@@ -111,7 +140,10 @@ export async function buildStepContext(admin: SupabaseClient, run: RhythmRun): P
   const lastCompleted = await getLastCompletedRun(admin, run.founderId)
   const delta = await collectCycleDelta(admin, run.founderId, lastCompleted?.startedAt ?? null)
   const baseContext = { ...(await buildContext(admin, run.founderId, contract)), newInformation: delta.digest }
-  const programs = (await getProgramsForContract(admin, contract.id)).filter(p => p.status === 'active')
+  const programs = orderPrograms(
+    (await getProgramsForContract(admin, contract.id)).filter(p => p.status === 'active'),
+    contract.activePrograms,
+  )
   return { contract, baseContext, hasNewInput: delta.hasNewInput, programs }
 }
 

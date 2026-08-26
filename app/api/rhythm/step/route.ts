@@ -62,10 +62,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const writer = createDeltaWriter(admin, parsed.data.runId)
     let step: Awaited<ReturnType<typeof runNextStep>>
     try {
-      step = await runNextStep(admin, parsed.data.runId, writer.onDelta)
+      step = await runNextStep(admin, parsed.data.runId, writer)
     } finally {
-      // Clears streaming_text regardless of outcome — a failed step must not leave stale live
-      // text sitting on the run row for the next step (a different asset) to inherit.
+      // Clears streaming_text AND its asset id regardless of outcome — a failed step must not
+      // leave stale live text on the run row for the next step (a different asset) to inherit.
       await writer.finish()
     }
     if (!step.done) triggerNextRhythmStep(parsed.data.runId)

@@ -120,7 +120,7 @@ export default function ExecutiveDetailPage() {
     router.push(`?asset=${encodeURIComponent(assetId)}`, { scroll: false })
   }, [router])
   // Watch a document write itself, live — see useAutoOpenLiveAsset's own docstring.
-  const { openAssetLiveText, activeAssetId, recordDismissal } = useAutoOpenLiveAsset({
+  const { openAssetStream, activeAssetId, recordDismissal } = useAutoOpenLiveAsset({
     executiveId, rhythm, openAssetId, openAsset,
   })
   const closeAsset = useCallback(() => {
@@ -283,7 +283,7 @@ export default function ExecutiveDetailPage() {
       </PageContainer>
 
       <AssetWorkspacePanel
-        assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} liveText={openAssetLiveText}
+        assetId={openAssetId} originRect={openAssetOrigin} onClose={closeAsset} liveStream={openAssetStream}
       />
     </div>
   )

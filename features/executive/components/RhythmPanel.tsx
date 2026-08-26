@@ -43,6 +43,7 @@ import { Button } from '@/features/shared/components/Button'
 import { scopeStepsToExecutive, documentProgress } from '../lib/scope-progress'
 import type { RhythmProgressState } from '../hooks/useRhythmProgress'
 import { Empty, StatusLine, StepRow, StreamingRow, HistoryRow } from './RhythmStepList'
+import { streamOwnedBy } from '../hooks/live-stream'
 
 export type StepState = 'done' | 'active' | 'pending' | 'failed' | 'skipped'
 export type StepKind = 'asset' | 'briefing' | 'action'
@@ -129,7 +130,7 @@ export function RhythmPanel({
 }: { progressState: RhythmProgressState; executiveId?: string; programTemplateId?: string }) {
   const {
     progress, history, loaded, live, now, error, streaming,
-    sseLiveText: liveText, realtimeText, startCycle,
+    sseStream, activeLive, startCycle,
   } = progressState
   const [historyOpen, setHistoryOpen] = useState(false)
 
@@ -178,7 +179,7 @@ export function RhythmPanel({
         // (see judge.ts's onDelta comment). Stale progress from a prior run is hidden rather
         // than shown alongside this, to avoid implying it's what's updating live; `load()`
         // replaces this with the real, settled step list the moment the stream ends.
-        <StreamingRow text={liveText} />
+        <StreamingRow text={sseStream?.text ?? ''} />
       ) : (
         <>
           {!programScoped && <Empty />}
@@ -189,7 +190,11 @@ export function RhythmPanel({
                 <StepRow
                   key={step.key}
                   step={step}
-                  liveText={step.state === 'active' ? realtimeText : undefined}
+                  // Keyed on the step's OWN asset id, not on it looking active. Before the fix
+                  // in lib/rhythm/progress.ts one step per Program read as active, so the same
+                  // global text rendered under all of them at once. A briefing/action row has
+                  // no assetId, so it correctly gets nothing — those never stream.
+                  liveStream={streamOwnedBy(activeLive, step.assetId) ? activeLive : null}
                 />
               ))}
             </div>

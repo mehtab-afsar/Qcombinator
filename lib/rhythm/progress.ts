@@ -95,10 +95,68 @@ function programOrNull(templateId: string): { assets: readonly string[]; actions
   }
 }
 
+/**
+ * The ONE unit of work the engine will do next — or null when nothing is in flight.
+ *
+ * ⚠️ This exists because 'active' is a property of the RUN, not of a program. It used to be
+ * decided per-program (a local `activeTaken` flag inside each step builder, gated on the
+ * run-level `running`), which meant the first unfinished asset of EVERY active program was
+ * marked active at once. The engine generates exactly one asset per pass and returns
+ * (lib/rhythm/run.ts's runNextStep), so all but one of those were fiction — and because the
+ * live-text column was equally unowned, every executive's tab rendered the one genuinely
+ * running program's text under its own document's name.
+ *
+ * Mirrors runNextStep's own scan order exactly: programs in the caller's order, and within a
+ * program assets → briefing → actions, skipping past a phase that failed or was blocked.
+ * If the two ever disagree the panel points at the wrong step, so `activeTemplateIds` and the
+ * engine's program order must be the same order — see orderPrograms in lib/rhythm/context.ts.
+ */
+export interface CurrentWork {
+  templateId: string
+  kind: 'asset' | 'briefing' | 'action'
+  /** The Registry id of the specific asset/action — null for a briefing, which has no id. */
+  id: string | null
+}
+
+export function currentWork(
+  activeTemplateIds: readonly string[],
+  stages: Record<string, StageShape>,
+): CurrentWork | null {
+  for (const templateId of activeTemplateIds) {
+    const program = programOrNull(templateId)
+    if (!program) continue // unknown Program — skipped without consuming the cursor
+    const stage = stages[templateId] ?? {}
+
+    if (stage.assets === 'failed') continue // its briefing is 'blocked'; the engine moved on
+    const nextAsset = program.assets.find(id => !(stage.assetsDone ?? []).includes(id))
+    // The status guard mirrors the engine: once assets are completed/skipped no asset is next,
+    // even if assetsDone is short (ADR-028 can settle a phase without touching every id).
+    if (nextAsset && (stage.assets ?? 'pending') === 'pending') {
+      return { templateId, kind: 'asset', id: nextAsset }
+    }
+
+    if (stage.briefing === 'failed' || stage.briefing === 'blocked') continue
+    if ((stage.briefing ?? 'pending') === 'pending') return { templateId, kind: 'briefing', id: null }
+
+    const actions = stage.actions ?? 'pending'
+    if (actions === 'failed' || actions === 'blocked') continue
+    if (actions === 'pending') {
+      const nextAction = program.actions.find(id => !(stage.actionsDone ?? []).includes(id))
+      if (nextAction) return { templateId, kind: 'action', id: nextAction }
+    }
+  }
+  return null
+}
+
+/** Does the run-wide cursor point at exactly this step? */
+function isCurrent(current: CurrentWork | null, templateId: string, kind: CurrentWork['kind'], id: string | null): boolean {
+  return current !== null && current.templateId === templateId && current.kind === kind && current.id === id
+}
+
 /** The asset steps for one program, in the order the engine generates them. */
-function assetSteps(assetIds: readonly string[], templateId: string, executiveId: string | null, stage: StageShape, running: boolean): ProgressStep[] {
+function assetSteps(assetIds: readonly string[], templateId: string, executiveId: string | null, stage: StageShape, current: CurrentWork | null): ProgressStep[] {
   const doneIds = stage.assetsDone ?? []
-  let activeTaken = false
+  let failedTaken = false
 
   return assetIds.map(assetId => {
     const step = { key: `${templateId}:${assetId}`, label: assetLabel(assetId), templateId, executiveId, kind: 'asset' as const, assetId, actionId: null, preview: null }
@@ -108,26 +166,25 @@ function assetSteps(assetIds: readonly string[], templateId: string, executiveId
       // honest — 'done' would imply work happened.
       return { ...step, state: stage.assets === 'skipped' ? 'skipped' as const : 'done' as const }
     }
-    if (stage.assets === 'failed' && !activeTaken) {
-      activeTaken = true // the one that broke; the rest never started
+    // Still per-program: 'failed' is read off this program's own stage, not the run cursor.
+    if (stage.assets === 'failed' && !failedTaken) {
+      failedTaken = true // the one that broke; the rest never started
       return { ...step, state: 'failed' as const }
     }
-    if (running && stage.assets !== 'failed' && !activeTaken) {
-      activeTaken = true
-      return { ...step, state: 'active' as const }
-    }
+    if (isCurrent(current, templateId, 'asset', assetId)) return { ...step, state: 'active' as const }
     return { ...step, state: 'pending' as const }
   })
 }
 
 /** The briefing step — always last for its program, and gated on its assets. */
-function briefingStep(templateId: string, executiveId: string | null, stage: StageShape, running: boolean, assetsSettled: boolean): ProgressStep {
+function briefingStep(templateId: string, executiveId: string | null, stage: StageShape, current: CurrentWork | null): ProgressStep {
   const step = { key: `${templateId}:briefing`, label: 'Executive briefing', templateId, executiveId, kind: 'briefing' as const, assetId: null, actionId: null, preview: null }
 
   if (stage.briefing === 'completed') return { ...step, state: 'done' }
   if (stage.briefing === 'failed') return { ...step, state: 'failed' }
-  // 'blocked' means its assets failed so it never ran — pending, not failed.
-  if (running && assetsSettled && stage.briefing !== 'blocked') return { ...step, state: 'active' }
+  // 'blocked' means its assets failed so it never ran — pending, not failed. currentWork skips
+  // past a blocked briefing for the same reason, so this can never be the cursor's target.
+  if (isCurrent(current, templateId, 'briefing', null)) return { ...step, state: 'active' }
   return { ...step, state: 'pending' }
 }
 
@@ -143,28 +200,25 @@ function actionSteps(
   templateId: string,
   executiveId: string | null,
   stage: StageShape,
-  running: boolean,
-  briefingSettled: boolean,
+  current: CurrentWork | null,
 ): ProgressStep[] {
   // Defaulted exactly as the engine defaults them: a run created before Actions shipped has no
   // `actions` key, and treating that as "not pending" would hide the phase entirely.
   const status = stage.actions ?? 'pending'
   const doneIds = stage.actionsDone ?? []
-  let activeTaken = false
+  let failedTaken = false
 
   return actionIds.map(actionId => {
     const step = { key: `${templateId}:${actionId}`, label: actionLabel(actionId), templateId, executiveId, kind: 'action' as const, assetId: null, actionId, preview: null }
 
     if (doneIds.includes(actionId)) return { ...step, state: 'done' as const }
-    if (status === 'failed' && !activeTaken) {
-      activeTaken = true
+    if (status === 'failed' && !failedTaken) {
+      failedTaken = true
       return { ...step, state: 'failed' as const }
     }
-    // Actions only begin once the briefing has settled — the engine's own phase order.
-    if (running && briefingSettled && status !== 'failed' && !activeTaken) {
-      activeTaken = true
-      return { ...step, state: 'active' as const }
-    }
+    // The phase gate (actions only begin once the briefing has settled) now lives in
+    // currentWork, which walks the engine's real order rather than re-deriving it here.
+    if (isCurrent(current, templateId, 'action', actionId)) return { ...step, state: 'active' as const }
     return { ...step, state: 'pending' as const }
   })
 }
@@ -184,19 +238,23 @@ export function buildProgress(
   const running = run.status === 'running'
   const steps: ProgressStep[] = []
 
+  // The single place `running` is consulted. Deliberately NOT gated on `stalled` as well: a
+  // stalled run must keep showing which step it died on, which is the whole diagnostic.
+  const current = running
+    ? currentWork(activeTemplateIds, run.stages as Record<string, StageShape>)
+    : null
+
   for (const templateId of activeTemplateIds) {
     const program = programOrNull(templateId)
     if (!program) continue // unknown Program — skip it rather than break the whole view
     const stage = (run.stages[templateId] ?? {}) as StageShape
     const executiveId = program.owner
 
-    const assets = assetSteps(program.assets, templateId, executiveId, stage, running)
-    // The briefing only starts once every asset for its program has settled.
-    const assetsSettled = assets.every(s => s.state === 'done' || s.state === 'skipped')
-    const briefing = briefingStep(templateId, executiveId, stage, running, assetsSettled)
-    // …and Actions only start once the briefing has (the engine's phase order, mirrored).
-    const briefingSettled = briefing.state === 'done'
-    steps.push(...assets, briefing, ...actionSteps(program.actions, templateId, executiveId, stage, running, briefingSettled))
+    steps.push(
+      ...assetSteps(program.assets, templateId, executiveId, stage, current),
+      briefingStep(templateId, executiveId, stage, current),
+      ...actionSteps(program.actions, templateId, executiveId, stage, current),
+    )
   }
 
   const done = steps.filter(s => s.state === 'done' || s.state === 'skipped').length

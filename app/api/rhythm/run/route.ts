@@ -179,8 +179,20 @@ export async function POST(req: NextRequest): Promise<Response> {
   const readable = new ReadableStream({
     async start(controller) {
       try {
-        const step = await runNextStep(admin, run.id, text => {
-          controller.enqueue(sseEncode({ type: 'delta', text }))
+        // The asset id must ride along, exactly as it does on the Realtime path: without it
+        // the client cannot tell whether this text belongs to the document it is showing, and
+        // the ownership check downstream would reject every delta — silently killing the live
+        // preview for the founder's own "Run now". `begin` lets the panel open before the first
+        // token; the per-delta copy means a client that missed it still pairs correctly.
+        let streamingAssetId: string | null = null
+        const step = await runNextStep(admin, run.id, {
+          begin(assetId: string) {
+            streamingAssetId = assetId
+            controller.enqueue(sseEncode({ type: 'begin', assetId }))
+          },
+          onDelta(text: string) {
+            controller.enqueue(sseEncode({ type: 'delta', text, assetId: streamingAssetId }))
+          },
         })
         if (!step.done) triggerNextRhythmStep(run.id)
         controller.enqueue(sseEncode({ type: 'done', runId: run.id, cycleKey, done: step.done }))

@@ -14,6 +14,7 @@ import { bg, surf, bdr, ink, muted, blue, green, red, white, alpha } from '@/lib
 import { radius } from '@/features/shared/tokens'
 import { type useAssetWorkspace, type AssetVersion, type AssetDefinition } from '../hooks/useAssetWorkspace'
 import { ReportMarkdown } from './ReportMarkdown'
+import { isLiveStream, type LiveStream } from '../hooks/live-stream'
 
 type Disclosure = 'versions' | 'edit' | 'direct' | null
 
@@ -37,17 +38,21 @@ function downloadAsset(def: AssetDefinition | null | undefined, current: AssetVe
 }
 
 export function AssetWorkspaceBody({
-  workspace, liveText,
+  workspace, liveStream,
 }: {
   workspace: ReturnType<typeof useAssetWorkspace>
-  /** Set only while this Asset is actively generating — see AssetWorkspacePanel's own prop
-   *  comment. Renders in place of the settled Read view; Versions/Edit/Direct-the-AI all hide
-   *  while live, since they'd otherwise operate on the version being replaced. */
-  liveText?: string
+  /** Set only while THIS Asset is actively generating and the stream says so itself — see
+   *  live-stream.ts. Renders in place of the settled Read view; Versions/Edit/Direct-the-AI all
+   *  hide while live, since they'd otherwise operate on the version being replaced. */
+  liveStream?: LiveStream | null
 }) {
   const { def, history, current, error } = workspace
   const [open, setOpen] = useState<Disclosure>(null)
-  const isLive = liveText !== undefined
+  // ⚠️ Was `liveText !== undefined`, over a value that initialised to '' — so this was ALWAYS
+  // true and the panel hid the founder's real saved document behind a permanent "Writing this
+  // now…" for the entire cycle. One shared predicate now, so this and AssetWorkspacePanel
+  // cannot answer the same question differently again.
+  const isLive = isLiveStream(liveStream)
 
   return (
     <div>
@@ -88,9 +93,7 @@ export function AssetWorkspaceBody({
               <Loader2 size={14} color={blue} style={{ animation: 'spin 1s linear infinite' }} />
               <span style={{ color: blue, fontSize: 13, fontWeight: 600 }}>Writing this now…</span>
             </div>
-            {liveText ? <ReportMarkdown content={liveText} /> : (
-              <p style={{ color: muted, fontSize: 14 }}>Starting…</p>
-            )}
+            <ReportMarkdown content={liveStream!.text} />
           </div>
         ) : current ? (
           def?.outputSchema === 'markdown' ? (

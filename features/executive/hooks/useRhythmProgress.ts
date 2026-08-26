@@ -10,15 +10,19 @@
  *
  * Two streaming sources, composed exactly as RhythmPanel always did: `useStreamedRhythmStep`'s
  * SSE covers the founder's own "Run now" click, step 1 only; the Supabase Realtime subscription
- * on this run's `streaming_text` covers everything else. `activeLiveText` picks whichever
- * applies — the same ternary RhythmPanel's own render always did, now shared rather than
- * duplicated for a second consumer.
+ * on this run's `streaming_text` covers everything else. `activeLive` picks whichever applies —
+ * the same ternary RhythmPanel's own render always did, now shared rather than duplicated.
+ *
+ * Both sources carry the ID OF THE ASSET that produced the text, never a bare string: a run
+ * spans every executive's Programs, so unowned live text is text every tab renders as its own.
+ * See live-stream.ts, which owns that type and the two predicates for reading it.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStreamedRhythmStep } from './useStreamedRhythmStep'
 import { POLL_MS, isCycleLive } from '../lib/useCycleLive'
 import { createClient } from '@/lib/supabase/client'
+import type { LiveStream } from './live-stream'
 import type { ProgressStep, RunProgress, RunSummary } from '../components/RhythmPanel'
 
 /** How many times to auto-resume a single stalled run before giving up and leaving the existing
@@ -38,7 +42,7 @@ export function useRhythmProgress() {
   const [progress, setProgress] = useState<RunProgress | null>(null)
   const [history, setHistory] = useState<RunSummary[]>([])
   const [loaded, setLoaded] = useState(false)
-  const { streaming, liveText: sseLiveText, error, run: runStreamedStep } = useStreamedRhythmStep()
+  const { streaming, stream: sseStream, error, run: runStreamedStep } = useStreamedRhythmStep()
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
@@ -72,9 +76,11 @@ export function useRhythmProgress() {
   }, [live])
 
   const runId = progress?.runId ?? null
-  const [realtimeText, setRealtimeText] = useState('')
+  // null rather than an empty stream — see live-stream.ts. Realtime hands us the whole new row,
+  // so both columns always arrive together and can never be paired across two events.
+  const [realtime, setRealtime] = useState<LiveStream | null>(null)
   useEffect(() => {
-    setRealtimeText('')
+    setRealtime(null)
     if (!live || !runId) return
     let supabase: ReturnType<typeof createClient>
     let channel: ReturnType<ReturnType<typeof createClient>['channel']>
@@ -86,8 +92,10 @@ export function useRhythmProgress() {
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'operating_rhythm_runs', filter: `id=eq.${runId}` },
           payload => {
-            const text = (payload.new as { streaming_text: string | null }).streaming_text
-            setRealtimeText(text ?? '')
+            const row = payload.new as { streaming_text: string | null; streaming_asset_id: string | null }
+            // Null text clears the stream outright — that is what makes the writer's finish()
+            // land on the client too, rather than leaving the last step's words on screen.
+            setRealtime(row.streaming_text ? { text: row.streaming_text, assetId: row.streaming_asset_id } : null)
           },
         )
         .subscribe()
@@ -122,7 +130,7 @@ export function useRhythmProgress() {
   /** Whichever source applies right now — the SSE stream during the founder's own click,
    *  Realtime otherwise. Same logic RhythmPanel's render always used, shared here so a second
    *  consumer (the auto-opening document panel) doesn't have to re-derive it. */
-  const activeLiveText = streaming ? sseLiveText : realtimeText
+  const activeLive: LiveStream | null = streaming ? sseStream : realtime
 
   /** The one step currently `active`, if any — across every Program, unscoped. Callers that
    *  care about one executive/program should filter `progress.steps` themselves first (the
@@ -131,7 +139,7 @@ export function useRhythmProgress() {
 
   return {
     progress, history, loaded, live, now, error, streaming,
-    sseLiveText, realtimeText, activeLiveText, activeStep,
+    sseStream, realtime, activeLive, activeStep,
     startCycle, reload: load,
   }
 }

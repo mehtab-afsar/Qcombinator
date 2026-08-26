@@ -12,6 +12,7 @@
 
 import { useEffect, useRef } from 'react'
 import { scopeStepsToExecutive } from '../lib/scope-progress'
+import { streamOwnedBy, type LiveStream } from './live-stream'
 import type { RhythmProgressState } from './useRhythmProgress'
 import type { ProgressStep } from '../components/RhythmPanel'
 
@@ -34,7 +35,7 @@ export function useAutoOpenLiveAsset({
   rhythm: RhythmProgressState
   openAssetId: string | null
   openAsset: (assetId: string, originRect: null) => void
-}): { openAssetLiveText: string | undefined; activeAssetId: string | null; recordDismissal: () => void } {
+}): { openAssetStream: LiveStream | null; activeAssetId: string | null; recordDismissal: () => void } {
   const dismissedGeneratingId = useRef<string | null>(null)
 
   const activeAssetId = activeAssetIdFor(rhythm.progress?.steps ?? [], executiveId)
@@ -47,16 +48,22 @@ export function useAutoOpenLiveAsset({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openAssetId/openAsset intentionally excluded: this must fire only on activeAssetId changing, not on every render where a panel happens to already be open
   }, [activeAssetId])
 
-  // What the currently-open panel should show live, if anything: only when it's open on exactly
-  // the asset that's actively generating right now. Settled reads (everything else) pass
-  // undefined and AssetWorkspacePanel falls back to its normal fetch-the-saved-version behavior.
-  const openAssetLiveText = openAssetId && openAssetId === activeAssetId ? rhythm.activeLiveText : undefined
+  // What the currently-open panel should show live, if anything.
+  //
+  // ⚠️ Ownership comes from the STREAM'S OWN id, not from comparing against activeAssetId. Those
+  // look equivalent and are not: activeAssetId is derived from progress, so before the fix in
+  // lib/rhythm/progress.ts every executive's tab derived one, and each then rendered the single
+  // unowned global stream as its own document. Asking the text who it belongs to cannot go wrong
+  // that way. Everything else passes null and the panel reads the saved version as usual.
+  const openAssetStream = streamOwnedBy(rhythm.activeLive, openAssetId) ? rhythm.activeLive : null
 
   // Called from the page's closeAsset — remembers a founder-initiated close of a still-generating
   // document, so the effect above never fights them by re-opening the exact thing they just closed.
+  // Scoped to the GENERATING asset: closing some unrelated settled document mid-cycle must not
+  // count as dismissing the live one, which would suppress the auto-open they still want.
   function recordDismissal(): void {
-    if (openAssetId) dismissedGeneratingId.current = openAssetId
+    if (openAssetId && openAssetId === activeAssetId) dismissedGeneratingId.current = openAssetId
   }
 
-  return { openAssetLiveText, activeAssetId, recordDismissal }
+  return { openAssetStream, activeAssetId, recordDismissal }
 }

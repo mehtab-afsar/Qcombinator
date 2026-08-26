@@ -12,6 +12,7 @@
 import { motion } from 'framer-motion'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { isLiveStream, type LiveStream } from '../hooks/live-stream'
 import { Check, Loader2, AlertCircle, Minus, Circle, FileText, MessageSquare, Send } from 'lucide-react'
 import { ink, muted, blue, green, amber, red, bdr, alpha } from '@/lib/constants/colors'
 import { ease } from '@/features/shared/tokens'
@@ -117,12 +118,12 @@ function Line({ color, children }: { color: string; children: React.ReactNode })
   )
 }
 
-/** @param liveText Realtime-sourced text for this exact step, only ever passed for the
+/** @param liveStream Realtime-sourced text for this exact step, only ever passed for the
  *   currently-active one (see RhythmPanel's Part B subscription) — rendered as markdown (raw
  *   `#`/`**` otherwise show through mid-stream) in the same slot `step.preview` occupies once
  *   settled. `step.preview` itself is already server-stripped to plain text by
  *   lib/rhythm/preview.ts, so it stays a plain paragraph, unchanged. */
-export function StepRow({ step, liveText }: { step: ProgressStep; liveText?: string }) {
+export function StepRow({ step, liveStream }: { step: ProgressStep; liveStream?: LiveStream | null }) {
   const { icon, color, note } = stepLook(step.state)
   const KindIcon = kindIcon(step.kind)
   const isActive = step.state === 'active'
@@ -144,12 +145,12 @@ export function StepRow({ step, liveText }: { step: ProgressStep; liveText?: str
           <span style={{ color: step.state === 'pending' ? muted : ink, fontWeight: isActive ? 600 : 400, flex: 1 }}>{step.label}</span>
           {note && <span style={{ color, fontSize: 12, flexShrink: 0 }}>{note}</span>}
         </div>
-        {liveText ? (
+        {isLiveStream(liveStream) ? (
           <div style={{
             color: muted, fontSize: 12, margin: '4px 0 0', lineHeight: 1.5,
             maxHeight: 90, overflowY: 'auto',
           }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{liveText}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{liveStream!.text}</ReactMarkdown>
           </div>
         ) : step.preview && (
           // Fades in once, the moment this step's preview first appears.

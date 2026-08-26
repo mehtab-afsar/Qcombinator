@@ -30,6 +30,9 @@ import { getFounderContactsContext } from '@/lib/contacts/context'
 import { getLeadsContext } from '@/lib/entities/leads'
 import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
+import { createNotification } from '@/lib/notifications/create'
+import { notifyActionPending } from '@/lib/actions/notify-pending'
+import type { PayloadMetadata } from '@/lib/actions/payload'
 import { generateAssetContent } from './judge'
 import { weekCycleKey } from './cycle-key'
 
@@ -63,6 +66,16 @@ export interface CycleResult {
 }
 export interface StepResult {
   done: boolean
+}
+
+/**
+ * The live-stream sink for whichever ASSET a step turns out to generate — nothing else in a
+ * cycle streams. Called in order: `begin(assetId)` once, then `onDelta` per provider chunk.
+ * `DeltaWriter` (lib/rhythm/streaming.ts) satisfies this structurally, so no adapter is needed.
+ */
+export interface StepStream {
+  begin: (assetId: string) => void
+  onDelta: (text: string) => void
 }
 
 function newStage(): StageStatus {
@@ -175,17 +188,18 @@ export async function leadsContextFor(
  * duplicate LLM attempt for the SAME asset still hits the existing unique constraint on
  * `asset_versions(asset_id, execution_id)` (a clean 23505) rather than double-writing.
  *
- * @param onDelta PRD 2 Stage 2 — when supplied, threaded through to generateAssetContent ONLY
- *   when this step turns out to be an asset generation (never briefings/actions — the PRD's own
- *   "Patel is building your ICP profiles…" language is specifically about documents). Every
- *   existing caller (the step-chain route) passes nothing, so this step behaves identically to
- *   before for the unattended case — additive, not a second code path.
+ * @param stream PRD 2 Stage 2 — when supplied, used ONLY when this step turns out to be an asset
+ *   generation (never briefings/actions — the PRD's own "Patel is building your ICP profiles…"
+ *   language is specifically about documents). `begin(assetId)` is called before the generation
+ *   so every downstream delta is attributable to the document that produced it; without that,
+ *   live text has no owner and every executive's tab renders it as its own. Every existing
+ *   caller (the cron, the unattended chain) passes nothing and behaves exactly as before.
  * @throws RhythmError if the run row doesn't exist or the mandate is no longer confirmed.
  */
 export async function runNextStep(
   admin: SupabaseClient,
   runId: string,
-  onDelta?: (text: string) => void,
+  stream?: StepStream,
 ): Promise<StepResult> {
   const run = await getRun(admin, runId)
   if (!run) throw new RhythmError(`Run ${runId} not found.`)
@@ -214,6 +228,9 @@ export async function runNextStep(
           // founder input is not regenerated — rewriting identical inputs is model variance,
           // not maintenance. A missing asset is always generated (first cycle).
           if (currentAssets[nextAssetId] === undefined || hasNewInput) {
+            // Name the owner BEFORE the first token — a delta that arrives before this would be
+            // unattributable, and the writer drops unowned text on the floor by design.
+            stream?.begin(nextAssetId)
             await generateAssetContent(admin, {
               founderId: run.founderId,
               program,
@@ -222,7 +239,7 @@ export async function runNextStep(
               contractId: contract.id,
               activePrograms: contract.activePrograms,
               context: { ...baseContext, currentAssets },
-              onDelta,
+              onDelta: stream ? (text: string) => stream.onDelta(text) : undefined,
             })
             stage.assetsGenerated++
           }
@@ -318,7 +335,7 @@ export async function runNextStep(
           // A no-op spread for every Action outside a lead-producing Program — this is what lets
           // the SDR's later steps read the live pipeline instead of the prior step's prose.
           const leads = await leadsContextFor(admin, run.founderId, nextActionId)
-          await generateAction(admin, {
+          const entry = await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
@@ -326,6 +343,11 @@ export async function runNextStep(
             activePrograms: contract.activePrograms,
             context: { ...baseContext, ...chained, ...contacts, ...leads },
           })
+          // The one safety-checkpoint notification in the product — before this, an Action
+          // could sit pending_approval indefinitely with nothing telling the founder it existed.
+          if (entry.status === 'pending_approval') {
+            void notifyActionPending(admin, run.founderId, nextActionId, entry.request as unknown as PayloadMetadata)
+          }
         } catch (err) {
           if (err instanceof AlreadyExecutedError) {
             // The unique index caught a duplicate/retried step — this Action already ran for
@@ -362,13 +384,14 @@ export async function runNextStep(
   // the rest of this function: a notification failing must never make runNextStep itself fail —
   // the cycle genuinely did finish regardless of whether anyone got told.
   try {
-    await admin.from('notifications').insert({
-      user_id: run.founderId,
+    await createNotification({
+      userId: run.founderId,
       type: anyFailed ? 'cycle_failed' : 'cycle_completed',
       title: anyFailed ? 'Your team hit a snag this cycle' : "Your team finished this week's cycle",
       body: anyFailed
         ? 'Some work completed; a few things need a look before the rest can run.'
         : 'New documents and a fresh briefing are ready.',
+      dedupeKey: `cycle_finish:${run.founderId}:${run.cycleKey}`,
     })
   } catch (err) {
     log.warn('cycle-finish notification failed', { runId: run.id, err: (err as Error)?.message })
