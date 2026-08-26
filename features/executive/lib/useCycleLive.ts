@@ -9,10 +9,14 @@
  *  - `isCycleLive` + `POLL_MS` (pure) — for RhythmPanel, which already fetches the full progress
  *    object itself (it needs the per-step detail, not just the flag). Importing the pure check
  *    avoids a second, redundant poller inside the same component hitting the same endpoint.
- *  - `useCycleLive()` (a hook) — for BriefingsPanel/ActionsPanel, which have no other reason to
- *    fetch /api/rhythm/run. It runs its own lightweight poll and exposes a `generation` counter
- *    that increments exactly when `live` flips, so a consumer can re-run its own `load()` on
- *    that transition without re-deriving the transition itself.
+ *  - `useCycleLive()` (a hook) — for BriefingsPanel/ActionsPanel/the shared workspace, which have
+ *    no other reason to fetch /api/rhythm/run. It runs its own lightweight poll and exposes a
+ *    `generation` counter, so a consumer can re-run its own `load()` without re-deriving when to.
+ *
+ * `generation` increments when the cycle starts or ends AND when any step lands. It used to move
+ * only on the live transition, which meant a panel keyed to it went stale for the whole run: a
+ * founder watched the step list tick past six finished documents while the Documents panel beside
+ * it still read "Not generated yet" for three of them.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -24,6 +28,10 @@ export const POLL_MS = 5_000
 interface RunProgress {
   status: 'running' | 'completed' | 'failed'
   stalled: boolean
+  /** Steps finished (done + skipped). The signal that a NEW document just landed. Optional
+   *  because `isCycleLive` neither needs nor asks for it — liveness is status + stalled, and a
+   *  caller answering only that question shouldn't have to supply a count it doesn't have. */
+  done?: number
 }
 
 /**
@@ -37,6 +45,19 @@ export function isCycleLive(progress: RunProgress | null): boolean {
 }
 
 /**
+ * What a consumer would want to re-read for, as one comparable value: the cycle started or
+ * ended, OR another step landed. null means "nothing known yet" — distinct from any real
+ * reading, so the first poll establishes a baseline rather than counting as a change.
+ *
+ * Pure, and unit-tested directly (this repo has no hook-rendering library — same convention as
+ * isCycleLive above and shouldAutoResume in useRhythmProgress).
+ */
+export function cycleSignature(progress: RunProgress | null): string | null {
+  if (progress?.done == null) return null
+  return `${isCycleLive(progress)}:${progress.done}`
+}
+
+/**
  * Self-polling version of the same check, for a component with no other reason to read
  * /api/rhythm/run. Fetches once on mount, then polls every POLL_MS only while live — identical
  * shape to RhythmPanel's own effect, so this stops itself the moment the run reaches a terminal
@@ -47,7 +68,12 @@ export function useCycleLive(): { live: boolean; generation: number } {
   const [generation, setGeneration] = useState(0)
   const timer = useRef<ReturnType<typeof setInterval> | null>(null)
   const live = isCycleLive(progress)
-  const prevLive = useRef(live)
+  // Before `done` was part of this, `generation` moved only on the live transition, so a panel
+  // keyed to it stayed frozen for the entire ~11-minute run — which is how a founder came to be
+  // shown "Not generated yet" beside documents that had long since been written. This poll was
+  // already running; only what counts as a change is new.
+  const signature = cycleSignature(progress)
+  const prevSignature = useRef<string | null>(null)
 
   const poll = useCallback(async () => {
     try {
@@ -62,15 +88,19 @@ export function useCycleLive(): { live: boolean; generation: number } {
 
   useEffect(() => { void poll() }, [poll])
 
-  // Bump `generation` exactly on a live transition (cycle start OR finish) — a consumer keying
-  // its own load() off this, alongside its existing mount-time fetch, sees fresh data the moment
-  // a cycle it didn't itself trigger (another tab, the weekly cron) finishes.
+  // Bump `generation` on a live transition (cycle start OR finish) or on a step landing — a
+  // consumer keying its own load() off this, alongside its existing mount-time fetch, sees fresh
+  // data the moment a cycle it didn't itself trigger (another tab, the weekly cron) moves.
   useEffect(() => {
-    if (live !== prevLive.current) {
-      prevLive.current = live
+    if (signature === null) return // nothing read yet — a consumer's own mount fetch covers this
+    // The first real reading establishes the baseline WITHOUT bumping: consumers already fetch
+    // on mount, and bumping here would make every one of them immediately do it again.
+    if (prevSignature.current === null) { prevSignature.current = signature; return }
+    if (prevSignature.current !== signature) {
+      prevSignature.current = signature
       setGeneration(g => g + 1)
     }
-  }, [live])
+  }, [signature])
 
   useEffect(() => {
     if (!live) return

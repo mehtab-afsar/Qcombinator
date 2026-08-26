@@ -12,12 +12,17 @@
  * Fails quiet (renders nothing) when there's genuinely nothing to show — the page's own "The
  * Mandate" beat above this already explains "no active program yet" honestly; this panel isn't
  * the place to repeat that.
+ *
+ * Documents come from the shared workspace rather than a fetch of its own. This panel used to
+ * read /api/assets once on mount with deps [executiveId, programTemplateId] and never again, so
+ * mid-cycle it showed a snapshot from whenever the founder arrived — every card frozen at "Not
+ * generated yet" while one "Writing now…" badge walked down the list, for eleven minutes.
  */
 
-import { useEffect, useState } from 'react'
 import { blue, alpha } from '@/lib/constants/colors'
 import { SectionCard } from '@/features/shared/components/SectionCard'
-import { ArtifactCard, type ArtifactCardData } from './ArtifactCard'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
+import { ArtifactCard } from './ArtifactCard'
 import type { Rect } from '../lib/panel-origin'
 
 export function ProgramAssetsPanel({
@@ -35,27 +40,12 @@ export function ProgramAssetsPanel({
    *  Cross-referenced against each card's own id to show a "Writing now…" badge. */
   activeAssetId?: string | null
 }) {
-  const [assets, setAssets] = useState<ArtifactCardData[] | null>(null)
+  const { assets: all, assetsLoaded } = useExecutiveWorkspace()
+  const assets = all.filter(a =>
+    a.executiveId === executiveId && (!programTemplateId || a.programTemplateId === programTemplateId),
+  )
 
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const res = await fetch('/api/assets')
-        if (!live) return
-        if (!res.ok) { setAssets([]); return }
-        const all: ArtifactCardData[] = (await res.json()).assets ?? []
-        setAssets(all.filter(a =>
-          a.executiveId === executiveId && (!programTemplateId || a.programTemplateId === programTemplateId),
-        ))
-      } catch {
-        if (live) setAssets([])
-      }
-    })()
-    return () => { live = false }
-  }, [executiveId, programTemplateId])
-
-  if (!assets || assets.length === 0) return null
+  if (!assetsLoaded || assets.length === 0) return null
 
   return (
     <SectionCard title="Documents" style={{ background: alpha(blue, 0.04) }}>

@@ -23,8 +23,9 @@
  * anywhere in this view beyond the one confirmation already spent to get here.
  */
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { MandateCard } from './MandateCard'
+import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 import { ExecutiveRoster } from './ExecutiveRoster'
 import { AssetsPanel } from './AssetsPanel'
 import { ActionsPanel } from './ActionsPanel'
@@ -83,26 +84,10 @@ export function CommandView({
   // document panel) — a standalone call here is correct, not a duplicate of anything.
   const progressState = useRhythmProgress()
 
-  // Owned here, not self-fetched like the other panels below: the compact-vs-full decision on
-  // MandateCard needs the same data AssetsPanel renders, so this is the one fetch both read
-  // from, rather than a duplicate request just to answer "do any assets exist yet."
-  const [assets, setAssets] = useState<AssetSummary[]>([])
-  const [assetsLoaded, setAssetsLoaded] = useState(false)
-
-  useEffect(() => {
-    let live = true
-    void (async () => {
-      try {
-        const res = await fetch('/api/assets')
-        if (res.ok && live) setAssets((await res.json()).assets ?? [])
-      } catch {
-        /* fail quiet — a secondary surface on a page that already shows the mandate */
-      } finally {
-        if (live) setAssetsLoaded(true)
-      }
-    })()
-    return () => { live = false }
-  }, [contract.id])
+  // From the shared workspace, not a fetch of its own: the compact-vs-full decision on
+  // MandateCard needs the same list AssetsPanel renders, and the workspace already keeps exactly
+  // one copy current as a cycle writes documents.
+  const { assets, assetsLoaded } = useExecutiveWorkspace()
 
   return (
     <div>

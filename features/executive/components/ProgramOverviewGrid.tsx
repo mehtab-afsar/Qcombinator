@@ -23,7 +23,6 @@ import { groupByProgram } from '../lib/groupByProgram'
 import { useExecutiveWorkspace } from '../hooks/useExecutiveWorkspace'
 import type { ProgramInstance } from '../types/executive.types'
 
-interface AssetSummary { executiveId: string | null; programTemplateId: string | null }
 interface BriefingSummary { programTemplateId: string | null; verdict: string }
 
 export function ProgramOverviewGrid({
@@ -33,23 +32,20 @@ export function ProgramOverviewGrid({
   programs: ProgramInstance[]
   onSelect: (programId: string) => void
 }) {
-  const { actions: { pending } } = useExecutiveWorkspace()
-  const [assets, setAssets] = useState<AssetSummary[]>([])
+  // Documents come from the shared workspace — one copy, refreshed as a cycle writes them.
+  // Briefings keep their own fetch; nothing else on this page reads them.
+  const { actions: { pending }, assets } = useExecutiveWorkspace()
   const [latestBriefings, setLatestBriefings] = useState<BriefingSummary[]>([])
 
   useEffect(() => {
     let live = true
     void (async () => {
       try {
-        const [assetsRes, briefingsRes] = await Promise.all([
-          fetch('/api/assets'),
-          fetch('/api/briefings'),
-        ])
+        const briefingsRes = await fetch('/api/briefings')
         if (!live) return
-        if (assetsRes.ok) setAssets(((await assetsRes.json()).assets ?? []) as AssetSummary[])
         if (briefingsRes.ok) setLatestBriefings(((await briefingsRes.json()).latest ?? []) as BriefingSummary[])
       } catch {
-        if (live) { setAssets([]); setLatestBriefings([]) }
+        if (live) setLatestBriefings([])
       }
     })()
     return () => { live = false }

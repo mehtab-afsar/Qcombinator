@@ -38,10 +38,11 @@ import type { ExecutiveSummary } from '@/features/executive/types/executive.type
 interface Briefing { id: string; executiveId: string | null; verdict: string }
 
 export default function DocumentsHubPage() {
-  const { executives, loaded } = useExecutiveWorkspace()
-  const [assets, setAssets] = useState<ArtifactCardData[]>([])
+  // Documents from the shared workspace, which keeps one copy current as a cycle writes them —
+  // this page used to hold its own mount-time snapshot that never refreshed.
+  const { executives, loaded, assets, assetsLoaded } = useExecutiveWorkspace()
   const [briefings, setBriefings] = useState<Briefing[]>([])
-  const [assetsLoaded, setAssetsLoaded] = useState(false)
+  const [briefingsLoaded, setBriefingsLoaded] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [collapsedInitialized, setCollapsedInitialized] = useState(false)
 
@@ -49,17 +50,15 @@ export default function DocumentsHubPage() {
     let live = true
     void (async () => {
       try {
-        const [assetsRes, briefRes] = await Promise.all([fetch('/api/assets'), fetch('/api/briefings')])
+        const briefRes = await fetch('/api/briefings')
         if (!live) return
-        const assetList: ArtifactCardData[] = assetsRes.ok ? (await assetsRes.json()).assets ?? [] : []
         const briefList: Briefing[] = briefRes.ok ? (await briefRes.json()).briefings ?? [] : []
         if (!live) return
-        setAssets(assetList)
         setBriefings(briefList)
       } catch {
         /* leave the last good state */
       } finally {
-        if (live) setAssetsLoaded(true)
+        if (live) setBriefingsLoaded(true)
       }
     })()
     return () => { live = false }
@@ -74,7 +73,7 @@ export default function DocumentsHubPage() {
     setCollapsedInitialized(true)
   }, [collapsedInitialized, loaded, assetsLoaded, executives, assets])
 
-  if (!loaded || !assetsLoaded) return <PageSpinner label="Loading your documents…" />
+  if (!loaded || !assetsLoaded || !briefingsLoaded) return <PageSpinner label="Loading your documents…" />
 
   const toggle = (id: string) => setCollapsed(prev => {
     const next = new Set(prev)
