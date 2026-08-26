@@ -14,6 +14,14 @@
  *    ?teamToken= from the URL at all, so it always ran the normal "create your own company" flow.
  *    The backend (app/api/auth/signup/route.ts) already had correct join-not-create logic gated
  *    on `teamToken` being present in the request body; the frontend just never sent it.
+ *
+ * 3. Same gap on the Google sign-up path, which doesn't go through app/api/auth/signup at all —
+ *    app/auth/callback/route.ts creates the workspace instead. It always created a fresh
+ *    "Untitled Startup" for a brand-new Google sign-up with no teamToken awareness whatsoever, so
+ *    "Continue with Google" on the invite-aware onboarding form still silently gave the invitee
+ *    their own separate company. Fixed the same way as #2: the onboarding page's Google button now
+ *    carries ?teamToken= through the OAuth redirect, and the callback route joins the inviter's
+ *    workspace instead of creating a new one when it's present and valid.
  */
 
 import { readFileSync } from 'fs'
@@ -73,5 +81,37 @@ describe('the onboarding form reads teamToken from the URL and forwards it on si
     const idx = src.indexOf('email: form.email.trim()')
     const block = src.slice(idx, idx + 700)
     expect(block).toContain('...(teamToken ? { teamToken } : {})')
+  })
+
+  it('the Google button carries teamToken through the OAuth redirect', () => {
+    const idx = src.indexOf("signInWithOAuth({ provider: 'google'")
+    const block = src.slice(Math.max(0, idx - 300), idx + 100)
+    expect(block).toContain('teamToken')
+    expect(block).toContain('/auth/callback')
+  })
+})
+
+describe('a brand-new Google sign-up via a team invite joins the inviter\'s workspace, not a fresh one', () => {
+  const src = read('app/auth/callback/route.ts')
+
+  it('reads teamToken from the callback URL', () => {
+    expect(src).toContain("const teamToken = searchParams.get('teamToken')")
+  })
+
+  it('skips creating a default "Untitled Startup" when a teamToken is present', () => {
+    const idx = src.indexOf("insert({ name: 'Untitled Startup'")
+    const guard = src.slice(Math.max(0, idx - 200), idx)
+    expect(guard).toContain('if (!teamToken)')
+  })
+
+  it('validates the invite (not accepted, not expired) before joining', () => {
+    expect(src).toContain('!invite.accepted_at && new Date(invite.expires_at) > new Date()')
+  })
+
+  it('joins startup_members with the invited role and marks the invite accepted', () => {
+    const idx = src.indexOf('team invite startup_members upsert failed')
+    const block = src.slice(Math.max(0, idx - 300), idx + 600)
+    expect(block).toContain('role: invite.role')
+    expect(src).toContain("admin.from('team_invites').update({ accepted_at: new Date().toISOString() }).eq('id', invite.id)")
   })
 })

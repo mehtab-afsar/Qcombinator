@@ -256,7 +256,8 @@ function FounderOnboardingForm() {
         <button
           onClick={async () => {
             const { createClient: c } = await import('@/lib/supabase/client')
-            await c().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${window.location.origin}/auth/callback` } })
+            const redirectTo = `${window.location.origin}/auth/callback${teamToken ? `?teamToken=${encodeURIComponent(teamToken)}` : ''}`
+            await c().auth.signInWithOAuth({ provider: 'google', options: { redirectTo } })
           }}
           style={{
             width: '100%', height: 46, borderRadius: 12,

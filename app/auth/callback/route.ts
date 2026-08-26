@@ -14,6 +14,11 @@ export async function GET(req: NextRequest) {
   // the only signal this route has for which wizard a brand-new sign-up actually came from.
   // Ignored once a profile of either kind already exists; only decides the NEW-user branch below.
   const intent = searchParams.get('intent')
+  // Set by the founder onboarding page's Google button when it was reached via a team invite
+  // link (app/founder/join/page.tsx → ?teamToken= carried through the OAuth redirect). Only
+  // decides the NEW-user branch below, same as intent — an existing account clicking a team
+  // invite goes through /api/team/join instead (app/founder/join/page.tsx's logged-in path).
+  const teamToken = searchParams.get('teamToken')
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
@@ -127,24 +132,56 @@ export async function GET(req: NextRequest) {
     // Actions, Q-Score, Briefings) 400s with "No workspace found" for every Google sign-up.
     // Runs after the founder_profiles insert above, not in the same Promise.all — the
     // founder_profiles.startup_id update below needs that row to already exist.
-    try {
-      const { data: startup, error: startupError } = await admin
-        .from('startups')
-        .insert({ name: 'Untitled Startup', owner_user_id: user.id })
-        .select('id')
-        .single()
-      if (startupError) {
-        log.error('[oauth-callback] startup workspace creation failed:', startupError)
-      } else {
-        await Promise.all([
-          admin.from('startup_members').insert({ startup_id: startup.id, user_id: user.id, role: 'owner' })
-            .then(({ error: e }) => { if (e) log.error('[oauth-callback] startup_members insert failed:', e) }),
-          admin.from('founder_profiles').update({ startup_id: startup.id }).eq('user_id', user.id)
-            .then(({ error: e }) => { if (e) log.error('[oauth-callback] founder_profiles.startup_id update failed:', e) }),
-        ])
+    // Skipped when joining someone else's via teamToken (handled just below) — same reasoning
+    // as app/api/auth/signup/route.ts: a founder should only own one workspace.
+    if (!teamToken) {
+      try {
+        const { data: startup, error: startupError } = await admin
+          .from('startups')
+          .insert({ name: 'Untitled Startup', owner_user_id: user.id })
+          .select('id')
+          .single()
+        if (startupError) {
+          log.error('[oauth-callback] startup workspace creation failed:', startupError)
+        } else {
+          await Promise.all([
+            admin.from('startup_members').insert({ startup_id: startup.id, user_id: user.id, role: 'owner' })
+              .then(({ error: e }) => { if (e) log.error('[oauth-callback] startup_members insert failed:', e) }),
+            admin.from('founder_profiles').update({ startup_id: startup.id }).eq('user_id', user.id)
+              .then(({ error: e }) => { if (e) log.error('[oauth-callback] founder_profiles.startup_id update failed:', e) }),
+          ])
+        }
+      } catch (e) {
+        log.error('[oauth-callback] startup workspace creation failed:', e)
       }
-    } catch (e) {
-      log.error('[oauth-callback] startup workspace creation failed:', e)
+    } else {
+      // Team invite signup via Google — join the inviter's workspace instead of creating a new
+      // one. Same validation as app/api/auth/signup/route.ts's teamToken branch (not accepted,
+      // not expired). Awaited here (that route's equivalent block is fire-and-forget) — this
+      // founder's very next stop is /founder/onboarding, and middleware.ts's founder gate needs
+      // startup_id resolvable the instant they land there, not racing a background write.
+      try {
+        const { data: invite } = await admin
+          .from('team_invites')
+          .select('id, startup_id, role, expires_at, accepted_at')
+          .eq('token', teamToken)
+          .maybeSingle()
+        if (invite && !invite.accepted_at && new Date(invite.expires_at) > new Date()) {
+          await Promise.all([
+            admin.from('startup_members').upsert(
+              { startup_id: invite.startup_id, user_id: user.id, role: invite.role },
+              { onConflict: 'startup_id,user_id', ignoreDuplicates: true }
+            ).then(({ error: e }) => { if (e) log.error('[oauth-callback] team invite startup_members upsert failed:', e) }),
+            admin.from('founder_profiles').update({ startup_id: invite.startup_id }).eq('user_id', user.id)
+              .then(({ error: e }) => { if (e) log.error('[oauth-callback] team invite founder_profiles.startup_id update failed:', e) }),
+          ])
+          await admin.from('team_invites').update({ accepted_at: new Date().toISOString() }).eq('id', invite.id)
+        } else {
+          log.warn('[oauth-callback] teamToken invalid, expired, or already used — no workspace joined', { userId: user.id })
+        }
+      } catch (e) {
+        log.error('[oauth-callback] team invite auto-join failed:', e)
+      }
     }
 
     // Send welcome email — no confirm link needed, Google already verified this address
