@@ -28,6 +28,34 @@ export function activeAssetIdFor(steps: readonly ProgressStep[], executiveId: st
     ?.assetId ?? null
 }
 
+/**
+ * May the panel open itself right now? Pure, so the close-and-reopen behaviour a founder
+ * actually experiences is pinned by tests rather than living only inside an effect.
+ *
+ * Auto-opening is a convenience and must never override intent: it yields to a founder already
+ * reading something, and it never reopens the document they just closed. Reopening BY HAND is a
+ * different path entirely (the page's own openAsset → the ?asset= URL) and nothing here gates
+ * it — which is what makes "close it and open it again whenever I want" true.
+ */
+export function shouldAutoOpen(
+  activeAssetId: string | null,
+  openAssetId: string | null,
+  dismissedId: string | null,
+): boolean {
+  if (!activeAssetId) return false // nothing is generating
+  if (openAssetId) return false // they're reading something on purpose
+  return dismissedId !== activeAssetId // they already closed this one
+}
+
+/**
+ * What a founder-initiated close should record as dismissed — the generating document, or
+ * nothing at all. Closing an unrelated settled document mid-cycle must not count: it would
+ * suppress the auto-open they still want, for a document they never closed.
+ */
+export function dismissalFor(openAssetId: string | null, activeAssetId: string | null): string | null {
+  return openAssetId && openAssetId === activeAssetId ? openAssetId : null
+}
+
 export function useAutoOpenLiveAsset({
   executiveId, rhythm, openAssetId, openAsset,
 }: {
@@ -42,8 +70,7 @@ export function useAutoOpenLiveAsset({
 
   useEffect(() => {
     if (!activeAssetId) { dismissedGeneratingId.current = null; return }
-    if (openAssetId) return // a founder is already reading something on purpose — don't interrupt
-    if (dismissedGeneratingId.current === activeAssetId) return // they already closed this one
+    if (!shouldAutoOpen(activeAssetId, openAssetId, dismissedGeneratingId.current)) return
     openAsset(activeAssetId, null)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- openAssetId/openAsset intentionally excluded: this must fire only on activeAssetId changing, not on every render where a panel happens to already be open
   }, [activeAssetId])
@@ -58,11 +85,10 @@ export function useAutoOpenLiveAsset({
   const openAssetStream = streamOwnedBy(rhythm.activeLive, openAssetId) ? rhythm.activeLive : null
 
   // Called from the page's closeAsset — remembers a founder-initiated close of a still-generating
-  // document, so the effect above never fights them by re-opening the exact thing they just closed.
-  // Scoped to the GENERATING asset: closing some unrelated settled document mid-cycle must not
-  // count as dismissing the live one, which would suppress the auto-open they still want.
+  // document, so the effect above never fights them by reopening the exact thing they just closed.
   function recordDismissal(): void {
-    if (openAssetId && openAssetId === activeAssetId) dismissedGeneratingId.current = openAssetId
+    const dismissed = dismissalFor(openAssetId, activeAssetId)
+    if (dismissed) dismissedGeneratingId.current = dismissed
   }
 
   return { openAssetStream, activeAssetId, recordDismissal }
