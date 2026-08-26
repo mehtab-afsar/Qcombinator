@@ -21,9 +21,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { ink, muted, amber, alpha } from '@/lib/constants/colors'
+import { muted, amber, alpha } from '@/lib/constants/colors'
 import { Button } from '@/features/shared/components/Button'
-import { pickReasoningSections } from '@/lib/mandate/document'
+import { structureReasoning } from '@/lib/mandate/document-structure'
+import { StructuredReasoning } from '../mandate/StructuredReasoning'
 import { MandateDrafting } from './MandateDrafting'
 import { MandateCard } from '../MandateCard'
 import type { Contract } from '../../types/executive.types'
@@ -85,7 +86,7 @@ export function MandateReveal({
 
   if (drafting || !contract) return <MandateDrafting mission={mission} />
 
-  const reasoning = pickReasoningSections(contract.document)
+  const reasoning = structureReasoning(contract.document)
   // Only the deterministic fallback (lib/mandate/contract.ts's buildDraft) leaves `document`
   // null on a fresh draft — a real AI mandate always carries its reasoning. Only offer to
   // retry while still a draft; a confirmed contract is immutable (ADR-003) and needs the
@@ -132,15 +133,8 @@ export function MandateReveal({
                 />
               </button>
               {reasoningOpen && (
-                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 18 }}>
-                  {reasoning.map((section, i) => (
-                    <div key={i}>
-                      <h4 style={{ color: ink, fontSize: 13, fontWeight: 600, margin: 0 }}>{section.heading}</h4>
-                      <p style={{ color: muted, fontSize: 13, lineHeight: 1.7, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>
-                        {section.body}
-                      </p>
-                    </div>
-                  ))}
+                <div style={{ marginTop: 18 }}>
+                  <StructuredReasoning sections={reasoning} />
                 </div>
               )}
             </>

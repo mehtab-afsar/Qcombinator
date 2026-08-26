@@ -284,7 +284,7 @@ function MandateBody({
               ))}
             </motion.div>
           ) : (
-            <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: ink, fontSize: 14, lineHeight: 1.7 }}>
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: ink, fontSize: 14, lineHeight: 1.7, maxWidth: '70ch' }}>
               {contract.responsibilities.map((r, i) => (
                 <li key={i}>
                   <strong>{nameById.get(r.executive) ?? r.executive}</strong> — {r.mandate}
@@ -305,7 +305,7 @@ function Block({ label, items }: { label: string; items: string[] }) {
       <h3 style={{ color: muted, fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, margin: 0 }}>
         {label}
       </h3>
-      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: ink, fontSize: 14, lineHeight: 1.7 }}>
+      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: ink, fontSize: 14, lineHeight: 1.7, maxWidth: '70ch' }}>
         {items.map((item, i) => <li key={i}>{item}</li>)}
       </ul>
     </div>

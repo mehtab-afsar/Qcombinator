@@ -9,7 +9,7 @@
  */
 
 import { readFileSync } from 'fs'
-import { entryStep } from '@/features/executive/components/unveiling/Unveiling'
+import { entryStep } from '@/features/executive/lib/unveiling-entry'
 import { STAGES, activeStageIndex } from '@/features/executive/components/unveiling/MandateDrafting'
 import type { Contract, Strategy } from '@/features/executive/types/executive.types'
 

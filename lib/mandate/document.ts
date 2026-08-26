@@ -52,7 +52,25 @@ export function splitDocumentSections(document: string | null | undefined): Docu
   }
 }
 
-const REASONING_KEYWORDS = ['objective', 'pathway', 'risk']
+/**
+ * Which of the three reasoning sections a heading names, or null for everything else.
+ *
+ * Ordered, and the order is a decision rather than an accident: a heading matching two keywords
+ * ("Objectives and Risks") resolves to the first. Exported because lib/mandate/document-structure.ts
+ * needs the same classification to pick a renderer, and two copies of this list would drift.
+ */
+const REASONING_KINDS = [
+  ['objectives', 'objective'],
+  ['pathway', 'pathway'],
+  ['risks', 'risk'],
+] as const
+
+export type ReasoningKind = (typeof REASONING_KINDS)[number][0]
+
+export function classifySection(heading: string): ReasoningKind | null {
+  const lower = (heading ?? '').toLowerCase()
+  return REASONING_KINDS.find(([, keyword]) => lower.includes(keyword))?.[0] ?? null
+}
 
 // Step 8's compact restatement ("# Executive Contract" → Mission/Priorities/Pathway/
 // Assets/Metrics/Commitment) is already what the 4 extracted JSON fields summarise.
@@ -65,7 +83,5 @@ export function pickReasoningSections(document: string | null | undefined): Docu
   const sections = splitDocumentSections(document)
   const cutoff = sections.findIndex(s => CONTRACT_RESTATEMENT_RE.test(s.heading))
   const candidates = cutoff === -1 ? sections : sections.slice(0, cutoff)
-  return candidates.filter(s =>
-    REASONING_KEYWORDS.some(keyword => s.heading.toLowerCase().includes(keyword))
-  )
+  return candidates.filter(s => classifySection(s.heading) !== null)
 }

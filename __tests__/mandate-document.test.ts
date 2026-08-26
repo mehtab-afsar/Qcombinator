@@ -3,173 +3,8 @@
  * founder can read as "why", not just the 4-field JSON summary.
  */
 
-import { splitDocumentSections, pickReasoningSections } from '@/lib/mandate/document'
-
-// A document using the "# Step N — Title" heading style this file's parser
-// ORIGINALLY assumed. Verified live (7 Aug 2026, 9 real S002 calls) that the model
-// never actually produces this prefix — kept here only to prove the parser still
-// degrades sensibly on it (matches on heading depth + keyword, not a fixed prefix),
-// not because it's representative. REAL_CAPTURED_DOCUMENT below is representative.
-const STEP_PREFIXED_DOCUMENT = `
-# Step 1 — Executive Direction
-
-Summary of the company's current position and recommended direction.
-
----
-
-# Step 2 — Executive Objectives
-
-1. Define the business model — why it matters, expected impact, success criteria, priority: High.
-2. Establish financial foundations — why it matters, expected impact, success criteria, priority: High.
-
----
-
-# Step 3 — Recommended Strategic Pathway
-
-Product Validation. Chosen because product-market fit is unproven. Commercial Acceleration was
-rejected because there is no repeatable channel yet.
-
----
-
-# Step 4 — Executive Asset Blueprint
-
-| Asset | Purpose | Business Outcome | Responsible Co-Pilot | Priority |
-| --- | --- | --- | --- | --- |
-| ICP Profiles | Define target buyer | Higher conversion | Growth | High |
-
----
-
-# Step 5 — Asset Dependencies
-
-Customer Discovery -> ICP -> Messaging
-
----
-
-# Step 6 — Success Metrics
-
-### Leading Indicators
-Meetings, pilots.
-### Lagging Indicators
-Revenue, retention.
-
----
-
-# Step 7 — Executive Risks
-
-Strategic risk: market timing. Execution risk: hiring. Critical assumption: customers will pay.
-
----
-
-# Executive Contract
-
-### Mission
-Build the thing.
-
-### Strategic Pathway
-Product Validation.
-`
-
-// Captured verbatim from a real, successful S002 generation (routedCall path,
-// maxTokens 10,000, the tightened prompt in lib/prompts/executives/ceo/s002.ts) —
-// not hand-written. This is what pickReasoningSections must actually work against.
-const REAL_CAPTURED_DOCUMENT = `
-# Executive Summary
-
-**Current Position**
-Edge Alpha has built a diagnostic (Q-Score) and is developing an Executive Operating System to help early-stage founders become investor-ready. The company has validated the problem space but has not yet proven commercial traction or investor adoption of its methodology.
-
-**Recommended Direction**
-Commercial validation through focused execution: ship the complete Executive Operating System to initial paying founders via P001, prove measurable Q-Score improvement, and secure investor pilot commitments that reference Q-Score in their diligence process.
-
----
-
-# Executive Objectives
-
-**1. Prove Commercial Model**
-*Why it matters:* Revenue validates product-market fit and funds runway extension.
-*Priority:* High
-
-**2. Establish Q-Score as Investor Standard**
-*Why it matters:* Investor adoption creates defensible moat and two-sided marketplace dynamics.
-*Priority:* High
-
----
-
-# Recommended Strategic Pathway
-
-**Commercial Acceleration**
-
-*Why this pathway:* The company has a diagnostic and a thesis but no revenue or proven delivery model.
-
-*Why alternatives were not selected:* Investment Readiness would be premature without commercial traction; Product Validation risks over-building before proving founders will pay.
-
----
-
-# Executive Asset Blueprint
-
-| Asset | Purpose | Business Outcome | Responsible Co-Pilot | Priority |
-|-------|---------|------------------|---------------------|----------|
-| **ICP Definition** | Identify highest-probability founder segment | Focus commercial effort | Growth | High |
-
----
-
-# Asset Dependencies
-
-\`\`\`text
-ICP Definition
-    ↓
-Positioning & Messaging Framework
-\`\`\`
-
----
-
-# Success Metrics
-
-### Executive Objective 1: Prove Commercial Model
-**Leading:** Qualified founder conversations
-**Lagging:** Paying founders (target: 50), revenue
-
----
-
-# Executive Risks
-
-**Strategic Risk: Investor adoption lags founder adoption**
-If investors don't adopt Q-Score, the two-sided network effect fails — monitor investor pilot engagement weekly.
-
-**Execution Risk: P001 delivery doesn't improve Q-Score**
-If founders complete the program without measurable score improvement, ROI is unproven.
-
----
-
-# Executive Contract
-
-### Mission
-Build the fastest way for early-stage founders to get a fundable, investor-trusted operating system.
-
----
-
-### Executive Priorities
-- Acquire 50 paying founders by end of Q1 2027
-- Secure 3 signed investor pilots using Q-Score in diligence
-
----
-
-### Strategic Pathway
-Commercial Acceleration — prove the business works through revenue, delivery, and investor adoption.
-
----
-
-### Success Metrics
-Paying founders, signed investor pilots, Q-Score improvement
-
----
-
-### Executive Commitment
-
-**Edge Alpha Executive Team**
-
-"We commit to building the management systems, assets and execution support required to maximize the probability of achieving these objectives."
-`
+import { splitDocumentSections, pickReasoningSections, classifySection } from '@/lib/mandate/document'
+import { REAL_CAPTURED_DOCUMENT, STEP_PREFIXED_DOCUMENT } from './fixtures/s002-documents'
 
 describe('splitDocumentSections', () => {
   it('splits on real top-level headings, no fixed "Step N —" prefix required', () => {
@@ -249,5 +84,32 @@ describe('pickReasoningSections', () => {
   it('a founder must never see a raw error over this cosmetic panel — degrades to [] on anything unexpected', () => {
     expect(pickReasoningSections(null)).toEqual([])
     expect(pickReasoningSections('garbage with no headings')).toEqual([])
+  })
+})
+
+describe('classifySection — one keyword list, shared with the structurer', () => {
+  it('recognises the three reasoning sections by keyword, at either heading style', () => {
+    expect(classifySection('Executive Objectives')).toBe('objectives')
+    expect(classifySection('Step 2 — Executive Objectives')).toBe('objectives')
+    expect(classifySection('Recommended Strategic Pathway')).toBe('pathway')
+    expect(classifySection('Executive Risks')).toBe('risks')
+  })
+
+  it('returns null for everything that is not reasoning', () => {
+    expect(classifySection('Executive Summary')).toBeNull()
+    expect(classifySection('Executive Asset Blueprint')).toBeNull()
+    expect(classifySection('Success Metrics')).toBeNull()
+    expect(classifySection('')).toBeNull()
+  })
+
+  it('has a documented precedence when a heading matches two — decided, not accidental', () => {
+    expect(classifySection('Objectives and Risks')).toBe('objectives')
+  })
+
+  it('pickReasoningSections picks the same three as before the refactor', () => {
+    expect(pickReasoningSections(REAL_CAPTURED_DOCUMENT).map(s => s.heading)).toEqual([
+      'Executive Objectives', 'Recommended Strategic Pathway', 'Executive Risks',
+    ])
+    expect(pickReasoningSections(STEP_PREFIXED_DOCUMENT)).toHaveLength(3)
   })
 })

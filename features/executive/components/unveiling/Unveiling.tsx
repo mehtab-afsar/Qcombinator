@@ -16,6 +16,7 @@ import { red } from '@/lib/constants/colors'
 import { Button } from '@/features/shared/components/Button'
 import { useStreamedProposal, type StreamedProposal } from '../../hooks/useStreamedProposal'
 import { loadUnveilingDraft, saveUnveilingDraft, clearUnveilingDraft } from '../../lib/unveiling-draft'
+import { entryStep, type UnveilingStep } from '../../lib/unveiling-entry'
 import { Thread } from './Thread'
 import { TheRead } from './TheRead'
 import { ProposedDirection } from './ProposedDirection'
@@ -24,15 +25,9 @@ import { MandateReveal } from './MandateReveal'
 import { OneConfirm } from './OneConfirm'
 import type { Contract, Strategy } from '../../types/executive.types'
 
-type Step = 1 | 2 | 3 | 4 | 5
+type Step = UnveilingStep
 
 interface Committed { mission: string; priorities: string[]; goals: string[] }
-
-export function entryStep(strategy: Strategy | null, contract: Contract | null): Step {
-  if (contract) return 4
-  if (strategy) return 3
-  return 1
-}
 
 export function Unveiling({
   strategy, contract, onDone,
@@ -172,7 +167,15 @@ export function Unveiling({
         <Thread step={step} />
       </div>
 
-      <div style={{ flex: 1, maxWidth: 620, display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Widens at the mandate, not before. 620 is right for a streaming paragraph and a
+          one-line proposed direction; the mandate is cards, labelled rows and a reasoning
+          document, and read cramped at that width. 880 rather than the ~994 available inside
+          PageContainer(1120) less the Thread rail and its gap — the slack keeps the layout from
+          being width-critical, and the prose inside caps itself by measure regardless. */}
+      <div style={{
+        flex: 1, maxWidth: step >= 3 ? 880 : 620, transition: 'max-width 0.4s ease',
+        display: 'flex', flexDirection: 'column', gap: 24,
+      }}>
         {error && <p style={{ color: red, fontSize: 14, margin: 0 }}>{error}</p>}
 
         {step === 1 && (
