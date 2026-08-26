@@ -27,6 +27,7 @@ export function useInitialQuestion({ currentStep, sections, setSections, founder
     if (!sec || sec.messages.length > 0) return  // already has messages (draft or started)
 
     let initialQ: string
+    let openingMessages: string[] | undefined  // set only when the doc recap should be its own bubble, separate from the question
     if (currentStep === 'pitch') {
       initialQ = YC_QUESTIONS[0]
     } else if (isRetake && Object.keys(sec.extractedFields ?? {}).length > 0) {
@@ -56,7 +57,7 @@ export function useInitialQuestion({ currentStep, sections, setSections, founder
           const missing = getMissingFields(sec.extractedFields, currentStep, founderProfile.stage ?? 'pre-product', sec.confidenceMap ?? {})
           const foundSnippets = buildFoundSnippets(sec.extractedFields, currentStep)
           const foundStr = foundSnippets.length > 0
-            ? `From your documents I found: ${foundSnippets.slice(0, 3).join(' · ')}.\n\n`
+            ? `From your documents I found: ${foundSnippets.slice(0, 3).join(' · ')}.`
             : ''
           // Ask about the first missing required field specifically, not a list
           const firstMissingKey = missing[0]
@@ -65,7 +66,8 @@ export function useInitialQuestion({ currentStep, sections, setSections, founder
           const gapQ = firstMissingLabel && targetedSuffix
             ? `I still need your ${firstMissingLabel} — ${targetedSuffix}`
             : getInitialQuestion(currentStep, founderProfile)
-          initialQ = foundStr + gapQ
+          initialQ = foundStr ? `${foundStr}\n\n${gapQ}` : gapQ
+          if (foundStr) openingMessages = [foundStr, gapQ]
         }
       } else {
         initialQ = getInitialQuestion(currentStep, founderProfile)
@@ -76,7 +78,7 @@ export function useInitialQuestion({ currentStep, sections, setSections, founder
       ...prev,
       [sectionKey]: {
         ...prev[sectionKey],
-        messages: [{ role: 'agent', text: initialQ }],
+        messages: (openingMessages ?? [initialQ]).map(text => ({ role: 'agent' as const, text })),
         conversation: `Agent: ${initialQ}`,
       },
     }))

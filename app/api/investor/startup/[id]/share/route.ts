@@ -5,6 +5,7 @@ import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, startupShareSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { getStartupDisplayName } from '@/lib/founder/display-name'
+import { createNotification } from '@/lib/notifications/create'
 
 // GET /api/investor/startup/[id]/share — list real investors to share with
 export async function GET(
@@ -79,8 +80,8 @@ export async function POST(
     const sharerFirm = sharer?.firm_name ? ` (${sharer.firm_name})` : ''
     const startupName = getStartupDisplayName(founder)
 
-    await admin.from('notifications').insert({
-      user_id: targetInvestorId,
+    await createNotification({
+      userId: targetInvestorId,
       type: 'startup_share',
       title: `${sharerName} shared ${startupName} with you`,
       body: note

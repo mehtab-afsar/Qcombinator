@@ -6,6 +6,7 @@ import { isFounderVisible } from '@/lib/investor/visibility'
 import { parseBody, outreachPostSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
+import { createNotification } from '@/lib/notifications/create'
 
 // POST /api/investor/outreach
 // Allows investors to initiate contact with a founder.
@@ -102,11 +103,10 @@ export async function POST(request: NextRequest) {
       const investorName = (ip as { full_name?: string } | null)?.full_name ?? 'An investor'
       const firmName     = (ip as { firm_name?: string }  | null)?.firm_name  ?? ''
 
-      await admin.from('notifications').insert({
-        user_id:  founderId,
+      await createNotification({
+        userId:   founderId,
         type:     'investor_outreach',
         title:    `${investorName}${firmName ? ` from ${firmName}` : ''} wants to connect with you`,
-        read:     false,
         metadata: { connection_id: data.id, investor_id: user.id },
       })
     } catch (notifErr) {

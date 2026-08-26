@@ -57,6 +57,10 @@ export interface ActionSummary {
    *  written. Null for anything irreversible (that path never sets `result` at all) or that
    *  hasn't run. */
   summary: string | null
+  /** Which connector this Action accepts a founder-triggered data pull from, if any. */
+  pullSource: 'gmail_read' | 'posthog' | null
+  /** When the founder last pulled real data in for this Action, if ever. */
+  lastPulledAt: string | null
 }
 
 /**

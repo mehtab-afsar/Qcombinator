@@ -5,11 +5,13 @@
  * only, since reading analytics doesn't fit `send`/`reconcile` — the real capability is a plain
  * exported function on top of the shared `./mcp/client.ts` transport.
  *
- * ⚠️ SCOPE OF THIS FILE, ON PURPOSE. This feeds two mapped-but-unbuilt needs (Monitor Lead
- * Generation / P003, the product-health half of Monitor Health Scores / P006) — neither program
- * exists yet. Nothing here wires results into any Executive's prompt or Company Context; that's
- * still the ADR-028 "autonomous external signal" decision, not reopened by this file. Whatever
- * calls `queryPostHogTrends` today must be founder-triggered, same rule as Gmail-read.
+ * ⚠️ SCOPE OF THIS FILE, ON PURPOSE. As of the `founder_pulled_data` mechanism, this feeds
+ * `monitor_lead_generation` (P003) — but only via a founder's explicit click
+ * (`app/api/actions/[actionId]/pull-data/route.ts`), which caches the result; `lib/rhythm/run.ts`'s
+ * `pulledDataContextFor` then only ever reads that cache, never this connector directly. A Rhythm
+ * cycle step calling this on its own, unattended, is still the "autonomous external signal"
+ * decision a founder pilot hasn't yet justified. Whatever calls `queryPostHogTrends` must trace
+ * back to a founder's own click, same rule as Gmail-read.
  *
  * ⚠️ ASSUMED TOOL NAME — VERIFY BEFORE FIRST REAL CALL. `query-trends` is the closest match found
  * in PostHog's published MCP tool list at the time this was written; `send()` — actually

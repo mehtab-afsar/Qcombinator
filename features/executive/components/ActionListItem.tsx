@@ -11,12 +11,71 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Check, X, Clock, Circle, ChevronDown } from 'lucide-react'
+import { Check, X, Clock, Circle, ChevronDown, Download } from 'lucide-react'
 import { bdr, ink, muted, bg, amber, red, green, blue } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { FONT_SERIF } from '@/features/onboarding/theme'
 import { Button } from '@/features/shared/components/Button'
 import type { PendingAction, ActionSummary } from './ActionsPanel'
+
+const PULL_SOURCE_LABEL: Record<'gmail_read' | 'posthog', string> = {
+  gmail_read: 'Gmail',
+  posthog: 'PostHog',
+}
+
+/** A founder-triggered pull of real Connector data for one Action — never automatic. Nothing
+ *  runs until this button is clicked; see app/api/actions/[actionId]/pull-data/route.ts. */
+function PullDataControl({ action }: { action: ActionSummary }) {
+  const [query, setQuery] = useState('')
+  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [lastPulledAt, setLastPulledAt] = useState(action.lastPulledAt)
+
+  async function pull() {
+    setState('loading')
+    try {
+      const res = await fetch(`/api/actions/${action.actionId}/pull-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim() || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setState('error'); return }
+      setLastPulledAt(data.pulledAt)
+      setState('idle')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (!action.pullSource) return null
+  const label = PULL_SOURCE_LABEL[action.pullSource]
+
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 12px', flexWrap: 'wrap' }}
+    >
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={`Ask ${label} something specific (optional)`}
+        style={{
+          flex: 1, minWidth: 160, fontSize: 12, padding: '6px 10px', borderRadius: radius.sm,
+          border: `1px solid ${bdr}`, background: bg, color: ink, fontFamily: 'inherit',
+        }}
+      />
+      <Button variant="secondary" size="sm" loading={state === 'loading'} icon={<Download size={13} />} onClick={() => void pull()}>
+        Pull from {label}
+      </Button>
+      {state === 'error' && <span style={{ color: red, fontSize: 11 }}>Could not pull real data.</span>}
+      {lastPulledAt && state !== 'error' && (
+        <span style={{ color: muted, fontSize: 11 }}>
+          Last pulled {new Date(lastPulledAt).toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  )
+}
 
 /** Mirrors APPROVAL_TTL_MS in lib/actions/approve.ts — an approval is about a moment too. */
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000
@@ -66,6 +125,10 @@ export function ActionStatusRow({ action }: { action: ActionSummary }) {
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{action.summary}</ReactMarkdown>
         </div>
       )}
+      {/* Always available, regardless of status — a founder can ground this Action in real data
+          whether it's never run yet or already has a result, since the pull only affects the
+          NEXT time it runs. Never automatic; see PullDataControl's own comment. */}
+      <PullDataControl action={action} />
     </div>
   )
 }

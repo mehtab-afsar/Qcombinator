@@ -6,11 +6,14 @@
  * the old, removed Settings integration cards named that this product never actually built.
  *
  * ⚠️ SCOPE OF THIS FILE, ON PURPOSE. This is the CONNECTOR — OAuth, vault storage, revoke, and an
- * on-demand way to search/read a thread. It does NOT feed results into Carter's prompts or the
- * Executive's autonomous Company Context. That is the "autonomous external signal" capability
- * ADR-028 explicitly says not to build pre-emptively, until a founder pilot shows it's needed —
- * a distinct product decision, not an engineering side-effect of this file existing. Whatever
- * calls `searchGmailThreads`/`getGmailThread` today must be founder-triggered, not autonomous.
+ * on-demand way to search/read a thread. As of the `founder_pulled_data` mechanism, its result IS
+ * reachable from `monitor_and_classify_responses`'s Company Context (P005) — but only ever via a
+ * founder's explicit click (`app/api/actions/[actionId]/pull-data/route.ts`), which caches the
+ * result; `lib/rhythm/run.ts`'s `pulledDataContextFor` then only ever reads that cache. Nothing
+ * here is called automatically from inside a Rhythm cycle step — a cycle making a live call to
+ * this connector on its own, unattended, is still the "autonomous external signal" capability a
+ * founder pilot hasn't yet justified building. Whatever calls `searchGmailThreads`/`getGmailThread`
+ * must trace back to a founder's own click, not a cron or a cycle step.
  *
  * ⚠️ `send()` is NOT meaningful here and honestly refuses rather than silently no-op-ing — this
  * connector only reads. It still implements the full `Connector` interface so it can reuse the

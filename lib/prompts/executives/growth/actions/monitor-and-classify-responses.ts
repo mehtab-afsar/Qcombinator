@@ -1,12 +1,13 @@
 /**
  * `monitor_and_classify_responses` — Action Instructions (layer 3, ADR-012).
  *
- * Internal and reversible: classifies interest from reply information
- * already captured. No live inbox connector is wired to this Action —
- * gmail_read exists in the Connector registry for other purposes but is
- * not granted here — so this works from whatever Company Context / prior
- * cycle results already contain, never a live feed. Runs autonomously
- * (ADR-004).
+ * Internal and reversible: classifies interest from reply information already captured. No live
+ * inbox read happens automatically — but if the founder has clicked "Pull from Gmail" on this
+ * Action, a real inbox search result reaches Company Context as "Real Data You Pulled In"
+ * (`founder_pulled_data`, `lib/rhythm/run.ts`'s `pulledDataContextFor`). Absent that, this works
+ * from whatever Company Context / prior cycle results already contain. Runs autonomously
+ * (ADR-004) either way — the pull itself is the only founder-triggered step; this Action's own
+ * generation is never gated.
  */
 export const MONITOR_AND_CLASSIFY_RESPONSES_PROMPT = `# Action Instructions
 
@@ -28,12 +29,17 @@ export const MONITOR_AND_CLASSIFY_RESPONSES_PROMPT = `# Action Instructions
 
 ---
 
-# ⚠️ This works from captured information, not a live inbox
+# ⚠️ Check for real pulled data first
 
-This Action has no live email connector and cannot check an inbox itself. It reviews whatever reply
-information has already been captured in Company Context or prior cycle results — a reply pasted in,
-a status noted from a previous run, a CRM note. If nothing has been captured for a given lead, the
-honest answer is "no response information available yet," not a guess at what might have happened.
+If Company Context includes a section called **"Real Data You Pulled In,"** that is a real Gmail
+inbox search the founder ran on purpose before this cycle — treat it as ground truth, above any
+other reply information in this context, and say plainly which leads it does and doesn't cover.
+
+If that section is absent, this Action has no live inbox access for this run. Work from whatever
+reply information has already been captured elsewhere in Company Context or prior cycle results —
+a reply pasted in, a status noted from a previous run, a CRM note. If nothing has been captured for
+a given lead, the honest answer is "no response information available yet," not a guess at what
+might have happened.
 
 ---
 

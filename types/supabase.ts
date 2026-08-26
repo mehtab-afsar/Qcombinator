@@ -1867,6 +1867,7 @@ export type Database = {
         Row: {
           connection_req: boolean
           created_at: string
+          cycle_briefings: boolean
           deal_flow_notifications: boolean
           email_notifications: boolean
           high_q_score: boolean
@@ -1881,6 +1882,7 @@ export type Database = {
         Insert: {
           connection_req?: boolean
           created_at?: string
+          cycle_briefings?: boolean
           deal_flow_notifications?: boolean
           email_notifications?: boolean
           high_q_score?: boolean
@@ -1895,6 +1897,7 @@ export type Database = {
         Update: {
           connection_req?: boolean
           created_at?: string
+          cycle_briefings?: boolean
           deal_flow_notifications?: boolean
           email_notifications?: boolean
           high_q_score?: boolean
@@ -1912,9 +1915,11 @@ export type Database = {
         Row: {
           body: string | null
           created_at: string
+          dedupe_key: string | null
           id: string
           metadata: Json
           read: boolean
+          read_at: string | null
           title: string
           type: string
           user_id: string
@@ -1922,9 +1927,11 @@ export type Database = {
         Insert: {
           body?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           metadata?: Json
           read?: boolean
+          read_at?: string | null
           title: string
           type: string
           user_id: string
@@ -1932,9 +1939,11 @@ export type Database = {
         Update: {
           body?: string | null
           created_at?: string
+          dedupe_key?: string | null
           id?: string
           metadata?: Json
           read?: boolean
+          read_at?: string | null
           title?: string
           type?: string
           user_id?: string

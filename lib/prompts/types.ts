@@ -131,6 +131,20 @@ export interface CompanyContext {
    * handoffs).
    */
   pipelineLeads?: string
+  /**
+   * Real Connector data (Gmail-read, PostHog) the founder explicitly pulled in for THIS Action —
+   * read back from `founder_pulled_data` (`lib/actions/pulled-data.ts`'s `getPulledDataContext`).
+   * Populated NARROWLY, by `lib/rhythm/run.ts`'s `pulledDataContextFor`: one row per
+   * (founder, action), never for an Asset or a Briefing — the same carve-out as
+   * `founderContacts`/`pipelineLeads` above.
+   *
+   * Unlike `stripeMetrics`, this is NOT synced automatically — a Connector was actually called,
+   * but only once, by the founder's own click (`app/api/actions/[actionId]/pull-data/route.ts`),
+   * never from inside a Rhythm cycle step. That is the whole reason this reaches the model as a
+   * cache read rather than a live call: composing this package must never itself talk to a
+   * Connector (ADR-026).
+   */
+  pulledData?: string
 }
 
 export interface ComposeInput {

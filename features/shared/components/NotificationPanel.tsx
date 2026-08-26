@@ -1,15 +1,11 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  Bell, X, Check, Tag, AlertTriangle, Scissors, Handshake, Mail, Megaphone,
-  Globe, PenLine, FileText, FileSignature, Scale, FolderOpen, BarChart3, Send,
-  ClipboardList, DoorOpen, Eye, TrendingUp, MessageCircle, UserPlus,
-  CheckCircle2, Link2, CreditCard, Zap, CalendarCheck, UserCog, UserX, type LucideIcon,
-} from 'lucide-react'
+import { Bell, X, Check, ArrowRight, type LucideIcon } from 'lucide-react'
 import { useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { bg, surf, bdr, ink, muted, blue, green, amber, purple, cyan, red, white } from '@/lib/constants/colors'
+import { bg, surf, bdr, ink, muted, blue, green, red, white } from '@/lib/constants/colors'
+import { NOTIFICATION_REGISTRY, LEGACY_ICONS, isNotificationType } from '@/lib/notifications/registry'
 
 export interface NotifItem {
   id: string
@@ -21,72 +17,25 @@ export interface NotifItem {
   metadata?: Record<string, unknown>
 }
 
-// ─── type → accent color ──────────────────────────────────────────────────────
-const TYPE_COLOR: Record<string, string> = {
-  connection_request:  blue,
-  connection_accepted: green,
-  investor_outreach:   purple,
-  message:             blue,
-  qscore_update:       green,
-  deal_flow:           amber,
-  startup_share:       cyan,
-  agent_complete:      muted,
-  agent_action:        purple,  // autonomous agent work — purple to distinguish
-  investor_view:       amber,
-  stripe_verify:       '#635BFF', // Stripe brand purple — deliberate exception, not in the app palette
-  team_member_joined:  green,
-  team_role_changed:   blue,
-  team_member_removed: red,
-  cycle_completed:     green,
-  cycle_failed:        red,
-}
-
-// ─── type → icon — the single place a notification type is given an icon.
-// (Previously duplicated as emoji across three files: the API route, the founder
-// notifications hook, and the investor notifications hook — all deleted in favor
-// of this one map, keyed the same as TYPE_COLOR.) ──────────────────────────────
-const TYPE_ICON: Record<string, LucideIcon> = {
-  price_change_alert:   Tag,
-  runway_alert:         AlertTriangle,
-  runway_cuts_analysis: Scissors,
-  deal_reminder:        Handshake,
-  investor_update_sent: Mail,
-  outreach_sent:        Megaphone,
-  site_deployed:        Globe,
-  blog_published:       PenLine,
-  nda_generated:        FileText,
-  safe_generated:       FileSignature,
-  term_sheet_analysis:  Scale,
-  data_room_generated:  FolderOpen,
-  weekly_standup:       BarChart3,
-  offer_letter_sent:    Send,
-  survey_created:       ClipboardList,
-  fake_door_deployed:   DoorOpen,
-  investor_view:        Eye,
-  qscore_update:        TrendingUp,
-  message:              MessageCircle,
-  connection_request:   UserPlus,
-  connection_accepted:  CheckCircle2,
-  investor_outreach:    Megaphone,
-  startup_share:        Link2,
-  deal_flow:            Bell,
-  stripe_verify:        CreditCard,
-  agent_complete:       CheckCircle2,
-  agent_action:         Zap,
-  workshop_registered:  CalendarCheck,
-  team_member_joined:   UserPlus,
-  team_role_changed:    UserCog,
-  team_member_removed:  UserX,
-  cycle_completed:      CheckCircle2,
-  cycle_failed:         AlertTriangle,
-}
-
-function getAccent(type: string) {
-  return TYPE_COLOR[type] ?? muted
+// Icon, accent color, and deep-link now come from one place: lib/notifications/registry.ts,
+// shared with the writer that creates these rows. LEGACY_ICONS covers types with no live writer
+// (mostly pre-ADR-034) so an old row still renders a real icon instead of the generic fallback.
+function getAccent(type: string): string {
+  return isNotificationType(type) ? NOTIFICATION_REGISTRY[type].color : muted
 }
 
 function getIcon(type: string): LucideIcon {
-  return TYPE_ICON[type] ?? Bell
+  if (isNotificationType(type)) return NOTIFICATION_REGISTRY[type].icon
+  return LEGACY_ICONS[type] ?? Bell
+}
+
+/** metadata.href always wins (the writer knows the role-specific destination a generic type
+ *  can't); the registry's deepLink is the fallback for rows that don't carry one. */
+function getDeepLink(n: NotifItem): string | null {
+  const explicit = n.metadata?.href
+  if (typeof explicit === 'string') return explicit
+  if (!isNotificationType(n.type)) return null
+  return NOTIFICATION_REGISTRY[n.type].deepLink?.(n.metadata) ?? null
 }
 
 function timeAgo(iso: string) {
@@ -99,17 +48,22 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)}d ago`
 }
 
-export function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (id: string) => void }) {
+export function NotifRow({ n, onViewStartup, onRead }: {
+  n: NotifItem
+  onViewStartup?: (id: string) => void
+  /** Called when the row's link/action is actually used — the normal "opening it reads it"
+   *  behavior, alongside the panel's existing bulk "mark all read". */
+  onRead?: (id: string) => void
+}) {
   const accent = getAccent(n.type)
   const Icon = getIcon(n.type)
-  const founderId   = n.metadata?.founderId   as string | undefined
-  const toAgent     = n.metadata?.toAgent     as string | undefined
+  const founderId    = n.metadata?.founderId   as string | undefined
   const artifactType = n.metadata?.artifactType as string | undefined
-  const fromAgent   = n.metadata?.fromAgent   as string | undefined
-  // For agent_action notifications, link to the specific executive's workspace when we know
-  // which one triggered it, otherwise the executive team list. Agent work is a founder-only
-  // concept in this product — there is no investor equivalent to link to.
-  const agentActionHref = toAgent ? `/founder/executive/${toAgent}` : '/founder/executive'
+  const fromAgent    = n.metadata?.fromAgent   as string | undefined
+  const deepLink     = getDeepLink(n)
+  // startup_share has an in-panel callback (opens a modal, doesn't navigate) that takes
+  // priority over the generic Link when the caller provides one.
+  const useCallback  = n.type === 'startup_share' && founderId && onViewStartup
 
   return (
     <div style={{
@@ -159,58 +113,42 @@ export function NotifRow({ n, onViewStartup }: { n: NotifItem; onViewStartup?: (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11, color: muted }}>{timeAgo(n.time)}</span>
 
-          {/* Deep link for autonomous agent work */}
-          {n.type === 'agent_action' && (
-            <Link
-              href={agentActionHref}
-              style={{
-                fontSize: 11, fontWeight: 600, color: purple,
-                background: `${purple}12`, border: `1px solid ${purple}40`,
-                borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
-                display: 'inline-block',
-              }}
-            >
-              Open {toAgent ?? 'agent'} →
-            </Link>
-          )}
-
-          {/* Same deep-link pattern, for a finished/failed Operating Rhythm cycle — no single
-              executive to name (a cycle runs every contract-active Program together), so this
-              always points at the team overview rather than guessing one. */}
-          {(n.type === 'cycle_completed' || n.type === 'cycle_failed') && (
-            <Link
-              href={agentActionHref}
-              style={{
-                fontSize: 11, fontWeight: 600, color: n.type === 'cycle_failed' ? red : green,
-                background: `${n.type === 'cycle_failed' ? red : green}12`,
-                border: `1px solid ${n.type === 'cycle_failed' ? red : green}40`,
-                borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
-                display: 'inline-block',
-              }}
-            >
-              View →
-            </Link>
-          )}
-
-          {/* Triggered-by context for agent_action */}
-          {n.type === 'agent_action' && fromAgent && (
-            <span style={{ fontSize: 10, color: muted, fontStyle: 'italic' }}>
-              via {fromAgent}
-            </span>
-          )}
-
-          {n.type === 'startup_share' && founderId && onViewStartup && (
+          {/* One deep-link pattern for every type, sourced from the registry (or metadata.href
+              when the writer knows a role-specific destination a generic type can't) — every
+              notification resolves somewhere now, not just the 3 types this used to hardcode. */}
+          {useCallback ? (
             <button
-              onClick={() => onViewStartup(founderId)}
+              onClick={() => { onViewStartup!(founderId!); onRead?.(n.id) }}
               style={{
-                fontSize: 11, fontWeight: 600, color: blue,
-                background: `${blue}10`, border: `1px solid ${blue}25`,
+                fontSize: 11, fontWeight: 600, color: accent,
+                background: `${accent}10`, border: `1px solid ${accent}25`,
                 borderRadius: 999, padding: '2px 10px', cursor: 'pointer',
                 fontFamily: 'inherit',
               }}
             >
               View startup →
             </button>
+          ) : deepLink && (
+            <Link
+              href={deepLink}
+              onClick={() => onRead?.(n.id)}
+              style={{
+                fontSize: 11, fontWeight: 600, color: accent,
+                background: `${accent}12`, border: `1px solid ${accent}40`,
+                borderRadius: 999, padding: '2px 10px', textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              View <ArrowRight size={10} />
+            </Link>
+          )}
+
+          {/* Triggered-by context — a legacy field from before ADR-034; still meaningful on any
+              old agent_action row still in someone's inbox. */}
+          {fromAgent && (
+            <span style={{ fontSize: 10, color: muted, fontStyle: 'italic' }}>
+              via {fromAgent}
+            </span>
           )}
         </div>
         {/* Artifact type badge for autonomous actions */}
@@ -236,6 +174,7 @@ export function NotificationDropdown({
   onClose,
   onMarkAllRead,
   onViewStartup,
+  onRead,
   footerHref,
 }: {
   notifications: NotifItem[]
@@ -243,6 +182,7 @@ export function NotificationDropdown({
   onClose: () => void
   onMarkAllRead: () => void
   onViewStartup?: (id: string) => void
+  onRead?: (id: string) => void
   footerHref?: string
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
@@ -338,7 +278,7 @@ export function NotificationDropdown({
           </div>
         ) : (
           notifications.map(n => (
-            <NotifRow key={n.id} n={n} onViewStartup={onViewStartup} />
+            <NotifRow key={n.id} n={n} onViewStartup={onViewStartup} onRead={onRead} />
           ))
         )}
       </div>

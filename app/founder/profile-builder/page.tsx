@@ -225,7 +225,6 @@ export default function ProfileBuilderPage() {
 
   const STEP_ORDER = flowMode === 'fast' ? STEP_ORDER_FAST : STEP_ORDER_FULL
   const stepIdx = STEP_ORDER.indexOf(currentStep)
-  const prevStep = stepIdx > 0 ? STEP_ORDER[stepIdx - 1] : null
   const nextStep = stepIdx < STEP_ORDER.length - 1 ? STEP_ORDER[stepIdx + 1] : null
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -281,7 +280,6 @@ export default function ProfileBuilderPage() {
             setRecalcResult={setRecalcResult}
             onRecalculate={handleRecalculate}
             onSend={handleSend}
-            prevStep={prevStep}
             nextStep={nextStep}
             setCurrentStep={setCurrentStep}
           />

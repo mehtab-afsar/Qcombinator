@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import {
   Check, ChevronRight, Lock, ArrowUpRight,
-  UserCircle, FileText, Target, Users, DollarSign,
+  UserCircle, FileText, Target, Users,
   type LucideIcon,
 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, amber, white, alpha } from '@/lib/constants/colors'
@@ -26,7 +26,6 @@ interface FounderProgress {
   profile_builder_completed: boolean
   assessment_completed: boolean
   registration_completed: boolean
-  has_metrics: boolean
   has_team_member: boolean
   full_name: string
   startup_name: string
@@ -75,15 +74,6 @@ function getSteps(p: FounderProgress): Step[] {
       badge: 'High impact',
     },
     {
-      id: 'metrics',
-      icon: DollarSign,
-      title: 'Add your metrics',
-      description: 'MRR, burn rate, and runway help investors filter accurately.',
-      detail: 'Optional · Required for Financials Q-Score parameter',
-      href: '/founder/metrics',
-      completed: p.has_metrics,
-    },
-    {
       id: 'team',
       icon: Users,
       title: 'Invite a co-founder',
@@ -108,14 +98,11 @@ export default function FounderGettingStarted() {
 
       const { data } = await sb
         .from('founder_profiles')
-        .select('onboarding_completed, profile_builder_completed, assessment_completed, registration_completed, full_name, startup_name, startup_profile_data')
+        .select('onboarding_completed, profile_builder_completed, assessment_completed, registration_completed, full_name, startup_name')
         .eq('user_id', user.id)
         .single()
 
       if (!data) { router.replace('/founder/onboarding'); return }
-
-      // Check for metrics via startup profile data
-      const hasMetrics = !!(data.startup_profile_data as Record<string, unknown>)?.mrr
 
       // Check for team members
       let hasTeamMember = false
@@ -130,7 +117,6 @@ export default function FounderGettingStarted() {
         profile_builder_completed:  data.profile_builder_completed   ?? false,
         assessment_completed:       data.assessment_completed        ?? false,
         registration_completed:     data.registration_completed      ?? false,
-        has_metrics:                hasMetrics,
         has_team_member:            hasTeamMember,
         full_name:                  data.full_name ?? '',
         startup_name:               data.startup_name ?? '',

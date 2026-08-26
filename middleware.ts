@@ -70,6 +70,7 @@ function matchRateLimit(pathname: string): { rule: { requests: number; window: s
  * Public routes (no auth required):
  *  - /login, /signup, /
  *  - /founder/onboarding (new users signing up)
+ *  - /founder/join, /investor/join (invite links — must work for a logged-out invitee)
  *  - /investor/onboarding
  *  - /api/*  (API routes handle their own auth)
  *  - /s/*    (public PMF survey pages)
@@ -98,7 +99,7 @@ const PUBLIC_PATHS = [
 const CONFIRMATION_GATE_EXEMPT = ['/founder/verify-email', '/investor/verify-email']
 
 // Prefixes that are always public (no session refresh needed)
-const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/q/', '/investor/join', '/_next/', '/favicon.ico']
+const PUBLIC_PREFIXES = ['/s/', '/apply/', '/pitch/', '/q/', '/founder/join', '/investor/join', '/_next/', '/favicon.ico']
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_PREFIXES.some(prefix => pathname.startsWith(prefix))) return true
@@ -256,9 +257,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (!user && !authTimedOut && isProtectedRoute(pathname)) {
-    // Redirect to login, preserving the intended destination for post-login redirect
+    // Redirect to login, preserving the intended destination for post-login redirect.
+    // Must include the query string, not just pathname — e.g. /founder/join?teamToken=...
+    // would otherwise arrive back with the invite token silently dropped.
     const loginUrl = new URL('/login', request.url)
-    loginUrl.searchParams.set('next', pathname)
+    loginUrl.searchParams.set('next', pathname + request.nextUrl.search)
     return NextResponse.redirect(loginUrl)
   }
 

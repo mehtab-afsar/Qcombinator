@@ -4,6 +4,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { getMyTeamRole, canInviteMembers, canRemoveMember, type TeamRole } from '@/lib/team/founder-permissions'
 import { log } from '@/lib/logger'
 import { logTeamEvent } from '@/lib/team/audit'
+import { createNotification } from '@/lib/notifications/create'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -133,13 +134,11 @@ export async function PATCH(request: NextRequest) {
     startupId, actorId: user.id, event: 'role_changed',
     targetUserId: userId, metadata: { toRole: newRole },
   })
-  void supabase.from('notifications').insert({
-    user_id:  userId,
+  void createNotification({
+    userId:   userId,
     type:     'team_role_changed',
     title:    `Your team role changed to ${newRole}`,
     metadata: { startupId, changedBy: user.id },
-  }).then(({ error: e }: { error: { message: string } | null }) => {
-    if (e) log.error('[team-members] role-change notification insert failed:', e)
   })
 
   return NextResponse.json({ ok: true })
@@ -190,13 +189,11 @@ export async function DELETE(request: NextRequest) {
     startupId, actorId: user.id, event: selfRemoval ? 'left' : 'removed', targetUserId: userId,
   })
   if (!selfRemoval) {
-    void supabase.from('notifications').insert({
-      user_id:  userId,
+    void createNotification({
+      userId:   userId,
       type:     'team_member_removed',
       title:    `You were removed from the team`,
       metadata: { startupId, removedBy: user.id },
-    }).then(({ error: e }: { error: { message: string } | null }) => {
-      if (e) log.error('[team-members] removal notification insert failed:', e)
     })
   }
 

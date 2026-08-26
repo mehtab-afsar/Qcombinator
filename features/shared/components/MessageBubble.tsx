@@ -92,9 +92,14 @@ interface MessageGroupProps {
   senderInitials: string
   myInitials: string
   isFirst: boolean
+  /** Hides the timestamp + read-receipt row below the last bubble in a group. Defaults to
+   *  true (unchanged behavior for every existing caller). Set false in a context with no
+   *  real "read by a human" concept and no meaningful elapsed-time framing — e.g. an
+   *  in-session AI chat that's already fully visible top-to-bottom on screen. */
+  showMeta?: boolean
 }
 
-export function MessageGroupBlock({ group, senderInitials, myInitials: _myInitials, isFirst }: MessageGroupProps) {
+export function MessageGroupBlock({ group, senderInitials, myInitials: _myInitials, isFirst, showMeta = true }: MessageGroupProps) {
   const { isMine, messages, isLastRead } = group
   const lastMsg = messages[messages.length - 1]
 
@@ -157,18 +162,20 @@ export function MessageGroupBlock({ group, senderInitials, myInitials: _myInitia
       })}
 
       {/* timestamp + read receipt row — below last bubble */}
-      <div style={{
-        display: 'flex',
-        justifyContent: isMine ? 'flex-end' : 'flex-start',
-        alignItems: 'center',
-        gap: 4,
-        paddingLeft: isMine ? 0 : 36,
-        paddingRight: isMine ? 36 : 0,
-        marginTop: 2,
-      }}>
-        <span style={{ fontSize: 10, color: muted }}>{relDate(lastMsg.created_at)}</span>
-        {isMine && <ReadReceipt isRead={isLastRead} />}
-      </div>
+      {showMeta && (
+        <div style={{
+          display: 'flex',
+          justifyContent: isMine ? 'flex-end' : 'flex-start',
+          alignItems: 'center',
+          gap: 4,
+          paddingLeft: isMine ? 0 : 36,
+          paddingRight: isMine ? 36 : 0,
+          marginTop: 2,
+        }}>
+          <span style={{ fontSize: 10, color: muted }}>{relDate(lastMsg.created_at)}</span>
+          {isMine && <ReadReceipt isRead={isLastRead} />}
+        </div>
+      )}
     </div>
   )
 }

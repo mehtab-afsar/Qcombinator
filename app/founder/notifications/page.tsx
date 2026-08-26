@@ -2,25 +2,26 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useInvestorNotifications } from "@/features/investor/hooks/useInvestorNotifications";
+import { useNotifications } from "@/features/founder/hooks/useNotifications";
 import { NotifRow, type NotifItem } from "@/features/shared/components/NotificationPanel";
 import { bg, surf, bdr, ink, muted, blue } from "@/lib/constants/colors";
 import { Bell, Check } from "lucide-react";
 
-export default function InvestorNotificationsPage() {
+export default function FounderNotificationsPage() {
   const router = useRouter();
-  const { notifications, unreadCount, markAllRead, markRead, load, loadMore, hasMore, loadingMore } = useInvestorNotifications();
+  const { notifications, unreadCount, markAllRead, markRead, load, loadMore, hasMore, loadingMore } = useNotifications();
   const [unreadOnly, setUnreadOnly] = useState(false);
-
-  function handleViewStartup(id: string) {
-    router.push(`/investor/startup/${id}`);
-  }
 
   function toggleUnreadOnly() {
     const next = !unreadOnly;
     setUnreadOnly(next);
     load(next);
   }
+
+  const notifItems: NotifItem[] = notifications.map(n => ({
+    id: n.id, type: n.action_type, title: n.title, body: n.body,
+    time: n.time, read: n.read, metadata: n.metadata,
+  }));
 
   return (
     <div style={{ minHeight: "100vh", background: bg }}>
@@ -33,7 +34,7 @@ export default function InvestorNotificationsPage() {
           display: "flex", alignItems: "center", gap: 16, height: 56,
         }}>
           <button
-            onClick={() => router.push("/investor/dashboard")}
+            onClick={() => router.push("/founder/dashboard")}
             style={{
               background: "none", border: `1px solid ${bdr}`, borderRadius: 8,
               padding: "6px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
@@ -101,14 +102,14 @@ export default function InvestorNotificationsPage() {
             <p style={{ fontFamily: "inherit", fontSize: 14, color: muted, margin: 0, lineHeight: 1.65 }}>
               {unreadOnly
                 ? "You're caught up — switch back to see everything."
-                : "Connection requests, messages, and deal flow updates will appear here."}
+                : "Approvals, cycle updates, and Q-Score milestones will appear here."}
             </p>
           </div>
         ) : (
           <>
             <div style={{ background: surf, border: `1px solid ${bdr}`, borderRadius: 14, overflow: "hidden" }}>
-              {(notifications as NotifItem[]).map(n => (
-                <NotifRow key={n.id} n={n} onViewStartup={handleViewStartup} onRead={markRead} />
+              {notifItems.map(n => (
+                <NotifRow key={n.id} n={n} onRead={markRead} />
               ))}
             </div>
             {hasMore && (

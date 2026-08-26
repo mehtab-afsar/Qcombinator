@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { verifyAuth } from '@/lib/auth/verify';
 import { isEmailConfirmed } from '@/lib/auth/email-confirmed';
 import { log } from '@/lib/logger';
+import { createNotification } from '@/lib/notifications/create';
 
 /**
  * GET  /api/connections
@@ -148,11 +149,10 @@ export async function POST(request: NextRequest) {
           .single()
         const founderName = (fp as { full_name?: string } | null)?.full_name   ?? 'A founder'
         const companyName = (fp as { startup_name?: string } | null)?.startup_name ?? 'their startup'
-        await admin.from('notifications').insert({
-          user_id:  investor_id,
+        await createNotification({
+          userId:   investor_id,
           type:     'connection_request',
           title:    `${founderName} from ${companyName} wants to connect`,
-          read:     false,
           metadata: { connection_id: data.id, founder_id: user.id },
         })
       } catch (notifErr) {

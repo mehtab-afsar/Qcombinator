@@ -28,6 +28,7 @@ import { generateAction } from '@/lib/actions/generate'
 import { AlreadyExecutedError, latestPerAction } from '@/lib/actions/log'
 import { getFounderContactsContext } from '@/lib/contacts/context'
 import { getLeadsContext } from '@/lib/entities/leads'
+import { getPulledDataContext } from '@/lib/actions/pulled-data'
 import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { createNotification } from '@/lib/notifications/create'
@@ -178,6 +179,26 @@ export async function leadsContextFor(
 
   const text = await getLeadsContext(admin, founderId).catch(() => null)
   return text ? { pipelineLeads: text } : {}
+}
+
+/**
+ * A founder-triggered pull of real Connector data (Gmail-read, PostHog) — see the
+ * `founder_pulled_data` migration's own comment for why this is a cache read here rather than a
+ * live Connector call. No allowlist needed: the cache is already scoped to one row per
+ * (founder, action), so an Action nobody has ever pulled data for just gets `{}`, same as every
+ * narrow injector above when its gate doesn't apply.
+ *
+ * ⚠️ This is the ONLY thing standing between "founder clicked pull" and "the model saw it" — it
+ * must stay a passive DB read. Calling a Connector from inside this function would put a live
+ * external call inside a Rhythm cycle step, which ADR-026 forbids.
+ */
+export async function pulledDataContextFor(
+  admin: SupabaseClient,
+  founderId: string,
+  actionId: string,
+): Promise<Pick<CompanyContext, 'pulledData'>> {
+  const text = await getPulledDataContext(admin, founderId, actionId).catch(() => null)
+  return text ? { pulledData: text } : {}
 }
 
 /**
@@ -335,13 +356,16 @@ export async function runNextStep(
           // A no-op spread for every Action outside a lead-producing Program — this is what lets
           // the SDR's later steps read the live pipeline instead of the prior step's prose.
           const leads = await leadsContextFor(admin, run.founderId, nextActionId)
+          // A no-op spread unless the founder has explicitly pulled real data in for this
+          // specific Action (see pulledDataContextFor's own docstring).
+          const pulled = await pulledDataContextFor(admin, run.founderId, nextActionId)
           const entry = await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
             executionId: run.id,
             activePrograms: contract.activePrograms,
-            context: { ...baseContext, ...chained, ...contacts, ...leads },
+            context: { ...baseContext, ...chained, ...contacts, ...leads, ...pulled },
           })
           // The one safety-checkpoint notification in the product — before this, an Action
           // could sit pending_approval indefinitely with nothing telling the founder it existed.

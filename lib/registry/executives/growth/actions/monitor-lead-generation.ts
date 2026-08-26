@@ -6,9 +6,12 @@ import type { ActionDef } from '../../../types'
  * under- or over-performing.
  *
  * Internal analysis. Reads Company Context and AS012's success metrics,
- * touches nothing outside the product, so it runs autonomously — approval
+ * touches nothing outside the product on its own, so it runs autonomously — approval
  * gates exist ONLY at the Connector boundary, never on internal work
- * (ADR-002, ADR-004).
+ * (ADR-002, ADR-004). If the founder has clicked "Pull from PostHog" (see
+ * `founder_pulled_data` / `app/api/actions/[actionId]/pull-data/route.ts`), real trend data
+ * reaches Company Context as "Real Data You Pulled In" — cached from the founder's last click,
+ * never fetched by this Action on its own initiative.
  *
  * DERIVED, NOT SEEDED — the workbook's Action Registry sheet is empty; only
  * the name and one-line purpose came from the Program Registry.

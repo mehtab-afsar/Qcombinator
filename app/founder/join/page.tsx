@@ -98,7 +98,7 @@ function JoinContent() {
       // Not logged in or other error → redirect to signup with token
     } catch { /* fall through */ }
     setJoining(false);
-    router.push(`/signup?teamToken=${encodeURIComponent(token)}`);
+    router.push(`/founder/onboarding?teamToken=${encodeURIComponent(token)}`);
   }
 
   function handlePortfolioContinue() {
@@ -182,7 +182,7 @@ function JoinContent() {
               </motion.button>
               <p style={{ fontSize: 11, color: muted, textAlign: "center", marginTop: 10 }}>
                 New to Edge Alpha?{" "}
-                <a href={`/signup?teamToken=${encodeURIComponent(token ?? "")}`} style={{ color: purple, textDecoration: "none" }}>Create an account first</a>
+                <a href={`/founder/onboarding?teamToken=${encodeURIComponent(token ?? "")}`} style={{ color: purple, textDecoration: "none" }}>Create an account first</a>
               </p>
             </div>
 

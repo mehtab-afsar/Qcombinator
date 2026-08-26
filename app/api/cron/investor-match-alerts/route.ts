@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
+import { createNotifications } from '@/lib/notifications/create'
 
 /**
  * GET /api/cron/investor-match-alerts
@@ -70,25 +71,21 @@ export async function GET(req: NextRequest) {
 
     if (!matchingInvestors.length) continue
 
-    // Batch-insert notifications for all matching investors
-    const notifications = matchingInvestors.map((inv: InvestorRow) => ({
-      user_id:  inv.user_id,
-      type:     'deal_flow',
-      title:    `New founder match: ${founder.startup_name ?? founder.full_name}`,
-      message:  `A ${founder.stage ?? 'early-stage'} ${founder.industry ?? ''} startup just completed their profile and matches your investment criteria.`,
+    // Fan out to all matching investors. dedupeKey guards against a founder still falling
+    // inside the 24h window on a second cron run notifying the same investor twice.
+    await createNotifications(matchingInvestors.map((inv: InvestorRow) => ({
+      userId:    inv.user_id,
+      type:      'deal_flow' as const,
+      title:     `New founder match: ${founder.startup_name ?? founder.full_name}`,
+      body:      `A ${founder.stage ?? 'early-stage'} ${founder.industry ?? ''} startup just completed their profile and matches your investment criteria.`,
       metadata: {
         founder_id: founder.user_id,
         sector:     founder.industry,
         stage:      founder.stage,
       },
-    }))
-
-    const { error: insertErr } = await supabase.from('notifications').insert(notifications)
-    if (insertErr) {
-      log.warn('[investor-match-alerts] notification insert failed:', insertErr.message)
-    } else {
-      notified += matchingInvestors.length
-    }
+      dedupeKey: `deal_flow:${inv.user_id}:${founder.user_id}`,
+    })))
+    notified += matchingInvestors.length
   }
 
   log.info(`[investor-match-alerts] sent ${notified} deal flow notifications for ${newFounders.length} new founders`)

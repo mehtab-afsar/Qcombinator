@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { log } from '@/lib/logger'
 import { routedText } from '@/lib/llm/router'
 import { trackFounderSignedUp } from '@/lib/analytics'
+import { createNotification } from '@/lib/notifications/create'
 
 /** Tidy the founder's own words — typos and grammar only, never rewritten meaning. */
 export async function enrichOnboardingText(
@@ -116,12 +117,12 @@ export async function autoLinkPortfolioByEmail(
           { onConflict: 'founder_id,investor_id', ignoreDuplicates: true }
         ),
 
-      supabase.from('notifications').insert({
-        user_id:  match.investor_user_id,
+      createNotification({
+        userId:   match.investor_user_id,
         type:     'message',
         title:    `${match.company_name} just joined Edge Alpha`,
         body:     'They signed up organically and were auto-linked to your portfolio.',
-        metadata: { founder_user_id: userId },
+        metadata: { founder_user_id: userId, href: '/investor/portfolio-companies' },
       }),
     ])
   } catch (err) {
@@ -134,15 +135,13 @@ export async function notifyAndTrackSignup(
   userId: string,
   fullName: string,
   method: 'email' | 'google',
-  supabase: SupabaseClient,
 ): Promise<void> {
   void Promise.resolve().then(() => trackFounderSignedUp(userId, { method }))
-  await supabase.from('notifications').insert({
-    user_id:  userId,
-    type:     'qscore_update',
+  await createNotification({
+    userId:   userId,
+    type:     'message',
     title:    `Welcome to Edge Alpha, ${fullName.split(' ')[0]}!`,
     body:     'Your profile is set up. Complete your Q-Score profile to appear in investor deal flow.',
     metadata: { action: 'profile-builder', href: '/founder/profile-builder' },
-    read:     false,
   })
 }

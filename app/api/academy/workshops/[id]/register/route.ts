@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { createNotification } from '@/lib/notifications/create'
 
 // POST /api/academy/workshops/:id/register — register the caller for a workshop.
 // Capacity-safe: register_for_workshop() locks the workshop row and checks spots_left
@@ -40,14 +41,11 @@ export async function POST(
 
     // Fire-and-forget confirmation notification — non-blocking, matches the pattern in
     // app/api/connections/route.ts.
-    void admin.from('notifications').insert({
-      user_id: auth.user.id,
+    void createNotification({
+      userId: auth.user.id,
       type: 'workshop_registered',
       title: 'You\'re registered for the workshop',
-      read: false,
       metadata: { workshop_id: workshopId },
-    }).then(({ error: notifErr }) => {
-      if (notifErr) log.error('POST /api/academy/workshops/[id]/register notification', { notifErr })
     })
 
     return NextResponse.json({ registered: true, spotsLeft: result.remaining_spots })

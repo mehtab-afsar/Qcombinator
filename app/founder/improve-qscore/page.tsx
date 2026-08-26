@@ -470,6 +470,28 @@ export default function ImproveQScorePage() {
           )}
         </div>
 
+        {/* Sections 2–4 need a real Q-Score to mean anything — a breakdown of six 0/100 rows
+            and a full list of "challenges" is not useful progress, it's every dimension
+            looking equally (and falsely) terrible before the founder has done anything. Show
+            one honest "go build your baseline first" state instead until hasScore is true. */}
+        {!hasScore ? (
+          <div style={{ ...cardStyle, padding: "48px 32px", textAlign: "center" }}>
+            <p style={{ fontSize: 15, fontWeight: 600, color: ink, marginBottom: 6 }}>
+              There&apos;s no score here to improve yet
+            </p>
+            <p style={{ fontSize: 13, color: muted, marginBottom: 18, maxWidth: 380, marginInline: "auto", lineHeight: 1.6 }}>
+              The Profile Builder is what calculates your Q-Score in the first place. Complete
+              it once, and this page fills in with your real breakdown and next steps.
+            </p>
+            <Link
+              href="/founder/profile-builder"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "10px 22px", borderRadius: 999, fontSize: 13, fontWeight: 600, background: ink, color: bg, textDecoration: "none" }}
+            >
+              Go to Profile Builder <ArrowRight size={13} />
+            </Link>
+          </div>
+        ) : (
+        <>
         {/* ── SECTION 2: Score Breakdown (compact expandable rows) ──────────── */}
         <div style={{ marginBottom: 36 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
@@ -714,6 +736,8 @@ export default function ImproveQScorePage() {
             </div>
           )}
         </div>
+        </>
+        )}
 
       </PageContainer>
     </div>

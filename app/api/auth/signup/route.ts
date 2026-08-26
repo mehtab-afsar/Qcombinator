@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
 
     // Welcome notification + signup analytics event — awaited so a slow insert can't race the
     // response, but non-fatal if either fails (see notifyAndTrackSignup).
-    void notifyAndTrackSignup(authData.user.id, fullName, 'email', supabaseAdmin)
+    void notifyAndTrackSignup(authData.user.id, fullName, 'email')
 
     // Fire-and-forget: welcome email. Supabase sends the confirmation link itself, separately.
     void sendWelcomeEmail({

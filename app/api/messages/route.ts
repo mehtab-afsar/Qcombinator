@@ -3,6 +3,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
 import { resolveDemoInvestorUserId } from '@/lib/investor/demo-investor'
+import { createNotification } from '@/lib/notifications/create'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 type Connection = { id: string; founder_id: string; investor_id: string | null; demo_investor_id: string | null; status: string }
@@ -163,17 +164,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Notify the recipient with correct sender role label + a link into their own inbox.
-    // notifications' only INSERT policy is service_role-only (RLS), so this must go
-    // through the admin client — the per-request client silently no-ops here.
-    const { error: notifyError } = await admin.from('notifications').insert({
-      user_id:  recipientId,
+    await createNotification({
+      userId:   recipientId,
       type:     'message',
       title:    isFounder ? 'New message from a founder' : 'New message from an investor',
       body:     body.trim().slice(0, 120),
       metadata: { connection_id: connectionId, sender_id: user.id, href: isFounder ? '/investor/messages' : '/founder/messages' },
-      read:     false,
     })
-    if (notifyError) log.error('POST /api/messages notify', { notifyError })
 
     return NextResponse.json({ message: msg }, { status: 201 })
   } catch (err) {

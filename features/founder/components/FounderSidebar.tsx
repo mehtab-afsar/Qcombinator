@@ -12,7 +12,6 @@ import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useGettingStarted } from "../hooks/useGettingStarted";
 import { useNotifications } from "../hooks/useNotifications";
-import { SidebarNotification } from "../types/founder.types";
 import { bg, surf, bdr, ink, muted, blue } from '@/lib/constants/colors'
 import { APP_NAME } from '@/lib/constants/app'
 import { Avatar } from '@/features/shared/components/Avatar'
@@ -439,19 +438,21 @@ export default function FounderSidebar() {
 // ─── exported top-right notification bell ─────────────────────────────────────
 export function FounderNotificationBell() {
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, markAllRead } = useNotifications();
+  const { notifications, unreadCount, markAllRead, markRead } = useNotifications();
 
   function handleOpen() {
     setOpen(v => !v);
     if (!open && unreadCount > 0) markAllRead();
   }
 
-  const notifItems: NotifItem[] = (notifications as Array<SidebarNotification & { read?: boolean }>).map(n => ({
-    id:    n.id,
-    type:  n.action_type,
-    title: n.title,
-    time:  n.time,
-    read:  n.read ?? false,
+  const notifItems: NotifItem[] = notifications.map(n => ({
+    id:       n.id,
+    type:     n.action_type,
+    title:    n.title,
+    body:     n.body,
+    time:     n.time,
+    read:     n.read ?? false,
+    metadata: n.metadata,
   }));
 
   return (
@@ -464,6 +465,8 @@ export function FounderNotificationBell() {
             unreadCount={unreadCount}
             onClose={() => setOpen(false)}
             onMarkAllRead={markAllRead}
+            onRead={markRead}
+            footerHref="/founder/notifications"
           />
         )}
       </AnimatePresence>

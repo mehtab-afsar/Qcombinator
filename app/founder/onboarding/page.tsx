@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Eye, EyeOff, ChevronRight, ArrowLeft } from 'lucide-react'
 import { IndustrySelector } from '@/features/onboarding/components/IndustrySelector'
@@ -94,8 +94,14 @@ function PrimaryButton({ onClick, disabled, children }: { onClick: () => void; d
   )
 }
 
-export default function FounderOnboardingPage() {
+function FounderOnboardingForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Set when this signup came from a team invite link (app/founder/join/page.tsx) — carried
+  // through to /api/auth/signup so it joins the inviter's workspace instead of creating a new
+  // one. Google sign-up (below) doesn't read this yet — that path always creates its own
+  // workspace via /auth/callback, a separate gap not covered by this fix.
+  const teamToken = searchParams.get('teamToken')
   const reducedMotion = useMotionPrefs()
   const [page, setPage] = useState(1)
   const [dir, setDir] = useState(1)
@@ -159,6 +165,7 @@ export default function FounderOnboardingPage() {
             problemStatement: form.problemStatement, targetCustomer: form.targetCustomer,
             location: form.location, tagline: form.tagline,
             marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
+            ...(teamToken ? { teamToken } : {}),
           }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -377,5 +384,13 @@ export default function FounderOnboardingPage() {
         )}
       </>)}
     </OnboardingShell>
+  )
+}
+
+export default function FounderOnboardingPage() {
+  return (
+    <Suspense>
+      <FounderOnboardingForm />
+    </Suspense>
   )
 }

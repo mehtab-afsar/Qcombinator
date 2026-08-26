@@ -7,6 +7,10 @@
  * purpose came from the Program Registry. Written to the same pattern as
  * P002's review_brand_positioning — a periodic check of standing performance
  * against evidence, not a rewrite of the underlying strategy.
+ *
+ * If the founder has clicked "Pull from PostHog" on this Action, a real trends query result
+ * reaches Company Context as "Real Data You Pulled In" (`founder_pulled_data`,
+ * `lib/rhythm/run.ts`'s `pulledDataContextFor`) — see the prompt's own note on weighting it.
  */
 export const MONITOR_LEAD_GENERATION_PROMPT = `# Action Instructions
 
@@ -25,6 +29,15 @@ export const MONITOR_LEAD_GENERATION_PROMPT = `# Action Instructions
 ## Program
 
 **P003 — Demand Generation**
+
+---
+
+# Real data, if the founder pulled it
+
+If Company Context includes a section called **"Real Data You Pulled In,"** that is a real PostHog
+query the founder ran on purpose before this cycle — weight it above any performance figures stated
+elsewhere in this context, and say plainly what it does and doesn't cover. If that section is
+absent, work from Company Context and AS012 alone, same as always.
 
 ---
 

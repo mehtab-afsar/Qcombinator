@@ -306,12 +306,22 @@ const FIELD_DISPLAY_LABELS: Record<string, string> = {
   'p5.businessModelAlignment': 'business model',
 }
 
+// Cuts at the last whitespace at/before `max`, never mid-word — a raw slice produced
+// snippets like "proprietary framewor…", cut inside a token, which read as garbled
+// rather than trimmed.
+function truncateAtWord(v: string, max: number): string {
+  if (v.length <= max) return v
+  const cut = v.slice(0, max)
+  const lastSpace = cut.lastIndexOf(' ')
+  return (lastSpace > max * 0.4 ? cut.slice(0, lastSpace) : cut) + '…'
+}
+
 function snippetStr(v: unknown): string {
   if (v === null || v === undefined) return ''
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
   if (typeof v === 'number') return v.toLocaleString()
-  if (typeof v === 'string') return v.slice(0, 55) + (v.length > 55 ? '…' : '')
-  return String(v).slice(0, 55)
+  if (typeof v === 'string') return truncateAtWord(v, 55)
+  return truncateAtWord(String(v), 55)
 }
 
 // Which fields each section's snippet/summary views pull from — shared by

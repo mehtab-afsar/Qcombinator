@@ -1,9 +1,15 @@
 import { Resend } from 'resend'
 import { log } from '@/lib/logger'
 import { APP_EMAIL_FROM, APP_URL as APP_BASE_URL, APP_DOMAIN } from '@/lib/constants/app'
+import { bg, surf, bdr, ink, muted, blue, amber } from '@/lib/constants/colors'
 
 const FROM    = APP_EMAIL_FROM
 const APP_URL = APP_BASE_URL
+
+// Email-safe serif stack — Fraunces (the site's real display face) isn't reliably embeddable
+// across mail clients, so this is the closest system fallback, used only where a template wants
+// the site's editorial voice rather than the shell's plain sans body copy.
+const FONT_SERIF = `Georgia, 'Iowan Old Style', 'Times New Roman', serif`
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -18,17 +24,17 @@ function getResend(): Resend | null {
 
 function emailShell(body: string): string {
   return `
-    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;background:#F9F7F2;border-radius:12px;overflow:hidden;color:#18160F">
-      <div style="background:#18160F;padding:16px 32px;display:flex;align-items:center">
-        <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:#F9F7F2">EDGE ALPHA</span>
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;background:${bg};border-radius:12px;overflow:hidden;color:${ink}">
+      <div style="background:${ink};padding:16px 32px;display:flex;align-items:center">
+        <span style="font-size:13px;font-weight:600;letter-spacing:0.08em;color:${bg}">EDGE ALPHA</span>
       </div>
       <div style="padding:40px 32px 32px">
         ${body}
       </div>
-      <div style="padding:16px 32px;border-top:1px solid #E2DDD5">
-        <p style="font-size:11px;color:#8A867C;margin:0;line-height:1.6">
+      <div style="padding:16px 32px;border-top:1px solid ${bdr}">
+        <p style="font-size:11px;color:${muted};margin:0;line-height:1.6">
           You're receiving this because you have an Edge Alpha founder account.
-          <br>© 2026 Edge Alpha · <a href="${APP_URL}" style="color:#8A867C">${APP_DOMAIN}</a>
+          <br>© 2026 Edge Alpha · <a href="${APP_URL}" style="color:${muted}">${APP_DOMAIN}</a>
         </p>
       </div>
     </div>
@@ -36,9 +42,9 @@ function emailShell(body: string): string {
 }
 
 function ctaBtn(href: string, label: string, primary = true): string {
-  const bg    = primary ? '#18160F' : '#F0EDE6'
-  const color = primary ? '#F9F7F2' : '#18160F'
-  return `<a href="${href}" style="display:inline-block;background:${bg};color:${color};text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:0.01em">${label}</a>`
+  const btnBg    = primary ? ink : surf
+  const btnColor = primary ? bg : ink
+  return `<a href="${href}" style="display:inline-block;background:${btnBg};color:${btnColor};text-decoration:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;letter-spacing:0.01em">${label}</a>`
 }
 
 // ─── Connection accepted (existing) ───────────────────────────────────────────
@@ -109,47 +115,57 @@ export async function sendWelcomeEmail(params: WelcomeEmailParams): Promise<void
   const firstName = fullName.split(' ')[0] || fullName
 
   const html = emailShell(`
-    <h1 style="font-size:28px;font-weight:300;letter-spacing:-0.02em;margin:0 0 8px">Welcome, ${firstName} 👋</h1>
-    <p style="font-size:13px;color:#8A867C;margin:0 0 28px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase">${startupName}</p>
+    <p style="font-family:${FONT_SERIF};font-size:30px;font-weight:400;letter-spacing:-0.01em;margin:0 0 6px;color:${ink}">Welcome, ${firstName} 👋</p>
+    <p style="font-size:12px;color:${muted};margin:0 0 28px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase">${startupName}</p>
 
-    <p style="font-size:15px;line-height:1.7;color:#18160F;margin:0 0 28px">
+    <p style="font-size:15px;line-height:1.7;color:${ink};margin:0 0 12px">
       Your Edge Alpha account is live. Check your inbox for a separate email confirming your
       address — click it to unlock investor matching.
     </p>
 
-    <div style="background:#F0EDE6;border-radius:10px;padding:20px 24px;margin:0 0 8px">
-      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8A867C;margin:0 0 14px">Get started in 3 steps</p>
+    <p style="font-size:15px;line-height:1.7;color:${ink};margin:0 0 28px">
+      The fastest way in: upload your pitch deck. Profile Builder reads it and calculates your
+      first Q-Score in minutes.
+    </p>
+
+    <div style="margin:0 0 32px">
+      ${ctaBtn(`${APP_URL}/founder/profile-builder`, 'Upload your pitch deck →')}
+    </div>
+
+    <div style="background:${surf};border-radius:10px;padding:20px 24px;margin:0 0 20px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${muted};margin:0 0 14px">What happens next</p>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;align-items:flex-start;gap:12px">
-          <span style="background:#18160F;color:#F9F7F2;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">1</span>
+          <span style="background:${ink};color:${bg};border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">1</span>
           <div>
-            <p style="font-size:13px;font-weight:600;color:#18160F;margin:0 0 2px">Upload your pitch deck</p>
-            <p style="font-size:12px;color:#8A867C;margin:0">Profile Builder auto-extracts your metrics and scores your startup.</p>
+            <p style="font-size:13px;font-weight:600;color:${ink};margin:0 0 2px">Upload your pitch deck</p>
+            <p style="font-size:12px;color:${muted};margin:0">Profile Builder auto-extracts your metrics and scores your startup.</p>
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:12px">
-          <span style="background:#18160F;color:#F9F7F2;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">2</span>
+          <span style="background:${ink};color:${bg};border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">2</span>
           <div>
-            <p style="font-size:13px;font-weight:600;color:#18160F;margin:0 0 2px">Chat with your AI advisors</p>
-            <p style="font-size:12px;color:#8A867C;margin:0">9 expert AI agents — GTM, finance, hiring, legal, and more.</p>
+            <p style="font-size:13px;font-weight:600;color:${ink};margin:0 0 2px">Your executive team goes to work</p>
+            <p style="font-size:12px;color:${muted};margin:0">Five AI executives — CEO, growth, finance, product, ops. Real, versioned deliverables every cycle — not chat replies.</p>
           </div>
         </div>
         <div style="display:flex;align-items:flex-start;gap:12px">
-          <span style="background:#18160F;color:#F9F7F2;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">3</span>
+          <span style="background:${ink};color:${bg};border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;line-height:20px;text-align:center">3</span>
           <div>
-            <p style="font-size:13px;font-weight:600;color:#18160F;margin:0 0 2px">Match with investors</p>
-            <p style="font-size:12px;color:#8A867C;margin:0">Your Q-Score unlocks curated investor intros based on stage and sector.</p>
+            <p style="font-size:13px;font-weight:600;color:${ink};margin:0 0 2px">Match with investors</p>
+            <p style="font-size:12px;color:${muted};margin:0">Your Q-Score unlocks curated investor intros based on stage and sector.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <div style="margin:20px 0 0;padding:16px 20px;background:#F0EDE6;border-radius:10px">
-      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#8A867C;margin:0 0 8px">New to the platform?</p>
-      <p style="font-size:13px;color:#18160F;margin:0 0 10px;line-height:1.6">
-        Download the Getting Started Guide — a 10-slide walkthrough of Q-Score, Patel's D1→D6 playbook, investor matching, and your 30-day quick-start plan.
+    <div style="padding:16px 20px;background:${surf};border-radius:10px">
+      <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${muted};margin:0 0 8px">New to the platform?</p>
+      <p style="font-size:13px;color:${ink};margin:0 0 10px;line-height:1.6">
+        Read the Getting Started Guide — Q-Score, your executive team, investor matching, and
+        your first 30 days.
       </p>
-      <a href="${APP_URL}/getting-started" style="font-size:12px;color:#2563EB;font-weight:600;text-decoration:none">View Getting Started Guide →</a>
+      <a href="${APP_URL}/getting-started" style="font-size:12px;color:${blue};font-weight:600;text-decoration:none">View Getting Started Guide →</a>
     </div>
   `)
 
@@ -394,4 +410,45 @@ export async function sendInvestorTeamInviteEmail(params: InvestorTeamInviteEmai
     return false
   }
   return true
+}
+
+// ─── Action needs approval ─────────────────────────────────────────────────────
+// The email side of lib/actions/notify-pending.ts — the one real approval checkpoint in the
+// product (ADR-002/ADR-004: no gates anywhere else). No recipient content here, same PII
+// discipline as action_log itself: a name and a count, never an address or a message body.
+
+export interface ActionPendingEmailParams {
+  email: string
+  fullName: string
+  actionName: string
+  /** Already-redacted, e.g. "3 recipients — acme.com, initech.com" — see payloadMetadata. */
+  summary?: string
+}
+
+export async function sendActionPendingEmail(params: ActionPendingEmailParams): Promise<void> {
+  const resend = getResend()
+  if (!resend) return
+
+  const { email, fullName, actionName, summary } = params
+  const firstName = fullName.split(' ')[0] || fullName
+
+  const html = emailShell(`
+    <p style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${amber};margin:0 0 20px">Needs your approval</p>
+    <h1 style="font-size:26px;font-weight:300;letter-spacing:-0.02em;margin:0 0 16px;line-height:1.25">${actionName}</h1>
+    <p style="font-size:15px;line-height:1.7;color:${ink};margin:0 0 8px">
+      Hi ${firstName} — your executive team prepared this and it's ready to go, but it reaches
+      outside Edge Alpha, so it waits for you.
+    </p>
+    ${summary ? `<p style="font-size:13px;color:${muted};margin:0 0 28px">${summary}</p>` : '<div style="margin-bottom:28px"></div>'}
+    ${ctaBtn(`${APP_URL}/founder/executive`, 'Review and approve →')}
+  `)
+
+  const { error } = await resend.emails.send({
+    from:    FROM,
+    to:      email,
+    subject: `Needs your approval: ${actionName}`,
+    html,
+  })
+
+  if (error) log.error('[email] sendActionPendingEmail failed:', error)
 }

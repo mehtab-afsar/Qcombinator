@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
 import { log } from '@/lib/logger'
+import { createNotification } from '@/lib/notifications/create'
 
 const schema = z.object({
   investorUserId: z.string().uuid(),
@@ -43,19 +44,16 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Notify investor via notifications table
-    await admin
-      .from('notifications')
-      .insert({
-        user_id: investorUserId,
-        type:    status === 'verified' ? 'qscore_update' : 'message',
-        title:   status === 'verified'
-          ? '✅ Your investor profile is verified'
-          : 'Profile update required',
-        body:    status === 'verified'
-          ? 'Your Edge Alpha investor profile has been verified. You now have full access to deal flow and founder connections.'
-          : 'Your investor profile could not be verified at this time. Please contact support for more information.',
-        read:    false,
-      })
+    await createNotification({
+      userId: investorUserId,
+      type:   status === 'verified' ? 'investor_verified' : 'message',
+      title:  status === 'verified'
+        ? '✅ Your investor profile is verified'
+        : 'Profile update required',
+      body:   status === 'verified'
+        ? 'Your Edge Alpha investor profile has been verified. You now have full access to deal flow and founder connections.'
+        : 'Your investor profile could not be verified at this time. Please contact support for more information.',
+    })
 
     log.info('investor verified', { investorUserId, status, by: user.email })
     return NextResponse.json({ ok: true })

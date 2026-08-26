@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createTypedAdminClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { log } from '@/lib/logger'
+import { createNotification } from '@/lib/notifications/create'
 
 // POST /api/stripe/connect
 // Body: { restrictedKey }
@@ -225,10 +226,7 @@ export async function GET() {
     // every dashboard load while unverified, and notifications' only INSERT policy is
     // service_role-only (RLS), so this goes through the admin client.
     if (profile && !profile.stripe_verified) {
-      const adminClient = createAdminClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY ?? '',
-      )
+      const adminClient = createTypedAdminClient()
       const { data: existing } = await adminClient
         .from('notifications')
         .select('id')
@@ -239,13 +237,12 @@ export async function GET() {
         .maybeSingle()
 
       if (!existing) {
-        await adminClient.from('notifications').insert({
-          user_id:  user.id,
+        await createNotification({
+          userId:   user.id,
           type:     'stripe_verify',
           title:    'Verify your revenue with Stripe',
           body:     'Unlock Signal Strength 1.0× and investor trust badges.',
           metadata: { href: '/founder/settings?tab=integrations' },
-          read:     false,
         })
       }
     }

@@ -5,11 +5,12 @@ import type { ActionDef } from '../../../types'
  * outreach already sent (Company Context / prior cycle results) and
  * classify interest level per lead, recommending the next step.
  *
- * Internal analysis, not a live inbox read — there is no email-monitoring
- * read access wired to this Action (gmail_read exists in the Connector
- * registry for other purposes, but is not granted here); this Action works
- * from whatever reply information has already been captured, not a live
- * feed. `irreversible: false`, no `connector`.
+ * Internal analysis, not a live inbox read by default — `irreversible: false`, no `connector`
+ * (a real read would be irreversible-shaped, and this Action isn't). If the founder has clicked
+ * "Pull from Gmail" (see `founder_pulled_data` / `app/api/actions/[actionId]/pull-data/route.ts`),
+ * the cached result reaches this Action's Company Context as "Real Data You Pulled In" — real,
+ * but only ever as current as the founder's last click, never a live feed fetched on this Action's
+ * own initiative.
  *
  * Genuinely new capability — nothing like it existed on P005 before this
  * restructuring. Sits after generate_personalized_outreach and before

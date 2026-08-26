@@ -3,6 +3,7 @@ import { calculateGrade } from '@/features/qscore/types/qscore.types';
 import { ARTIFACT_TYPES } from '@/lib/constants/artifact-types';
 import { fetchDimensionWeights } from '@/features/qscore/services/threshold-config';
 import { log } from '@/lib/logger'
+import { createNotification } from '@/lib/notifications/create'
 
 /**
  * P1-P6 boost config per artifact type.
@@ -180,13 +181,14 @@ export async function applyAgentScoreSignal(
   const prevOverall = latest.overall_score
   const crossed = MILESTONES.find(m => prevOverall < m && newOverall >= m)
   if (crossed) {
-    void supabase.from('notifications').insert({
-      user_id: userId,
-      type:    'qscore_update',
-      title:   `Q-Score milestone: ${crossed}`,
-      message: `Your Q-Score reached ${crossed}! Investors filtering above ${crossed} can now see your profile.`,
-      metadata: { newScore: newOverall, milestone: crossed, previous: prevOverall },
-    }).then()
+    void createNotification({
+      userId:   userId,
+      type:     'qscore_update',
+      title:    `Q-Score milestone: ${crossed}`,
+      body:     `Your Q-Score reached ${crossed}! Investors filtering above ${crossed} can now see your profile.`,
+      metadata: { newScore: newOverall, milestone: crossed, previous: prevOverall, href: '/founder/dashboard' },
+      dedupeKey: `qscore_milestone:${userId}:${crossed}`,
+    })
   }
 
   return {

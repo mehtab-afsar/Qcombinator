@@ -82,7 +82,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (auth.user.email) {
       void autoLinkPortfolioByEmail(auth.user.id, auth.user.email, profile.id, admin)
     }
-    void notifyAndTrackSignup(auth.user.id, existing.full_name ?? 'Founder', 'google', admin)
+    void notifyAndTrackSignup(auth.user.id, existing.full_name ?? 'Founder', 'google')
 
     return NextResponse.json({ message: 'Profile completed', user: { id: auth.user.id } }, { status: 200 })
   } catch (err) {

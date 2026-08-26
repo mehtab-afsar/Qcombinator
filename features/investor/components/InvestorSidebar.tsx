@@ -405,7 +405,7 @@ export default function InvestorSidebar() {
 // ─── exported top-right notification bell ─────────────────────────────────────
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const { notifications, unreadCount, markAllRead } = useInvestorNotifications();
+  const { notifications, unreadCount, markAllRead, markRead } = useInvestorNotifications();
   const router = useRouter();
 
   function handleOpen() {
@@ -429,6 +429,7 @@ export function NotificationBell() {
             onClose={() => setOpen(false)}
             onMarkAllRead={markAllRead}
             onViewStartup={handleViewStartup}
+            onRead={markRead}
             footerHref="/investor/notifications"
           />
         )}

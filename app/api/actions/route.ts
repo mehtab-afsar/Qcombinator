@@ -32,6 +32,7 @@ import { getCurrentContract, getProgramsForContract } from '@/lib/mandate/contra
 import { getProgram, getAction } from '@/lib/registry'
 import { log } from '@/lib/logger'
 import { getAnchorFounderId, getMyTeamRole, canApproveAction } from '@/lib/team/founder-permissions'
+import { PULL_SOURCES, getPulledAtTimestamps } from '@/lib/actions/pulled-data'
 
 /** A reversible internal Action's own analysis, generated for real by lib/actions/generate.ts
  *  but — until this — discarded the moment it was written; never a recipient/subject/body,
@@ -62,7 +63,11 @@ async function allActionsForFounder(
   )]
   if (actionIds.length === 0) return []
 
-  const latest = await latestPerActionForFounder(supabase, founderId)
+  const [latest, pulledAt] = await Promise.all([
+    latestPerActionForFounder(supabase, founderId),
+    // A DB read, not a Connector call — safe inside a request that also lists Actions.
+    getPulledAtTimestamps(supabase, founderId, actionIds.filter(id => id in PULL_SOURCES)),
+  ])
   const latestById = new Map(latest.map(e => [e.actionId, e]))
 
   return actionIds.map(actionId => {
@@ -81,6 +86,10 @@ async function allActionsForFounder(
       provider: entry?.provider ?? null,
       createdAt: entry?.createdAt ?? null,
       summary: resultSummary(entry?.result),
+      // Undefined (not present in PULL_SOURCES) vs null (pullable, never pulled) vs a timestamp —
+      // the UI needs all three states to decide whether to show the affordance at all.
+      pullSource: PULL_SOURCES[actionId] ?? null,
+      lastPulledAt: pulledAt[actionId] ?? null,
     }
   })
 }

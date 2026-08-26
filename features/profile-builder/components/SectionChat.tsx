@@ -6,7 +6,22 @@ import { Loader2, Zap, Paperclip, ArrowUp } from 'lucide-react';
 import { bg, surf, ink, muted, bdr, blue, green, white } from '@/lib/constants/colors';
 import { UPLOAD_IMPACT, SECTION_LABELS, SECTION_DESCRIPTIONS, YC_QUESTIONS, surf2, greenTintBg, greenBorderSoft, blueTintBg, blueTintText, blueBorderSoft, dotGray } from '@/features/profile-builder/lib/constants';
 import { initSection } from '@/features/profile-builder/lib/section-state';
-import type { SectionState, ProfileBuilderStep, RecalcResult } from '@/features/profile-builder/types';
+import { buildGroups, MessageGroupBlock, type ChatMessage } from '@/features/shared/components/MessageBubble';
+import type { SectionState, ProfileBuilderStep, RecalcResult, Message } from '@/features/profile-builder/types';
+
+// Message = { role, text } carries no real timestamp. These fake, second-apart values exist
+// only so buildGroups' 5-minute window sees monotonically increasing times and clusters
+// consecutive same-sender messages — showMeta={false} below means their absolute value is
+// never rendered, so it doesn't need to be real.
+function toChatMessages(messages: Message[]): ChatMessage[] {
+  return messages.map((m, i) => ({
+    id: String(i),
+    sender_id: m.role === 'user' ? 'me' : 'agent',
+    body: m.text,
+    created_at: new Date(i * 1000).toISOString(),
+    read_at: new Date(i * 1000).toISOString(), // no "read by a human" concept for an AI; kept non-null as the safe default
+  }));
+}
 
 interface SectionChatProps {
   currentStep: ProfileBuilderStep;
@@ -25,7 +40,6 @@ interface SectionChatProps {
   setRecalcResult: Dispatch<SetStateAction<RecalcResult | null>>;
   onRecalculate: () => void;
   onSend: (text: string) => void;
-  prevStep: ProfileBuilderStep | null;
   nextStep: ProfileBuilderStep | null;
   setCurrentStep: (step: ProfileBuilderStep) => void;
 }
@@ -34,7 +48,7 @@ export function SectionChat({
   currentStep, sections, setSections, animatedScores, ycPitchIdx, setYcPitchIdx,
   isTyping, chatEndRef, uploadTrigger, uploadLoading, onUploadClick,
   recalcResult, recalcLoading, setRecalcResult, onRecalculate,
-  onSend, prevStep, nextStep, setCurrentStep,
+  onSend, nextStep, setCurrentStep,
 }: SectionChatProps) {
   const router = useRouter();
   const [input, setInput] = useState('');
@@ -103,19 +117,15 @@ export function SectionChat({
             Loading question…
           </div>
         )}
-        {sec.messages.map((msg, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-            <div style={{
-              maxWidth: '82%', padding: '11px 15px',
-              fontSize: 14, lineHeight: 1.65,
-              background: msg.role === 'user' ? blue : surf2,
-              color: msg.role === 'user' ? white : ink,
-              borderRadius: msg.role === 'user' ? '14px 4px 14px 14px' : '4px 14px 14px 14px',
-              boxShadow: msg.role === 'user' ? '0 2px 8px rgba(37,99,235,0.18)' : '0 1px 3px rgba(24,22,15,0.06)',
-            }}>
-              {msg.text}
-            </div>
-          </div>
+        {buildGroups(toChatMessages(sec.messages), 'me').map((group, gi) => (
+          <MessageGroupBlock
+            key={group.messages[0].id}
+            group={group}
+            senderInitials="AI"
+            myInitials="Me"
+            isFirst={gi === 0}
+            showMeta={false}
+          />
         ))}
         {isTyping && (
           <div style={{ display: 'flex', gap: 5, padding: '12px 14px', width: 64,
@@ -335,16 +345,8 @@ export function SectionChat({
         </div>
       </div>
 
-      {/* Back / Next */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 40 }}>
-        <button
-          onClick={() => { if (prevStep !== null) setCurrentStep(prevStep) }}
-          style={{
-            padding: '10px 22px', borderRadius: 8, border: `1.5px solid ${bdr}`,
-            background: 'transparent', fontSize: 13, color: ink,
-            cursor: 'pointer', fontFamily: 'inherit',
-          }}
-        >← Back</button>
+      {/* Next */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 40 }}>
         <button
           onClick={() => { if (nextStep !== null) setCurrentStep(nextStep) }}
           style={{

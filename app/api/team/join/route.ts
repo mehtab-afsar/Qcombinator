@@ -10,6 +10,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { parseBody } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { logTeamEvent } from '@/lib/team/audit'
+import { createNotification } from '@/lib/notifications/create'
 
 const schema = z.object({ token: z.string().min(1) })
 
@@ -66,13 +67,11 @@ export async function POST(req: NextRequest) {
 
     // Notify whoever sent the invite — the moment they'd actually want to know about.
     if (invite.invited_by) {
-      void admin.from('notifications').insert({
-        user_id:  invite.invited_by,
+      void createNotification({
+        userId:   invite.invited_by,
         type:     'team_member_joined',
         title:    `${user.user_metadata?.full_name ?? user.email ?? 'Someone'} joined your team`,
         metadata: { startupId: invite.startup_id, userId: user.id, role: invite.role },
-      }).then(({ error: e }: { error: { message: string } | null }) => {
-        if (e) log.error('[team-join] notification insert failed:', e)
       })
     }
 

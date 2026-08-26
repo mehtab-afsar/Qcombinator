@@ -94,6 +94,10 @@ export function renderCompanyContext(
   // Briefing. Unlike Your Contacts above, this deliberately carries no addresses — see the field's
   // own docstring.
   field('Your Lead Pipeline', context.pipelineLeads)
+  // Narrowly populated too (pulledDataContextFor) — one row per (founder, action), never present
+  // for an Asset or a Briefing. The label says "You Pulled In" deliberately: this is real
+  // Connector data the founder explicitly asked for once, not something fetched on its own.
+  field('Real Data You Pulled In', context.pulledData)
 
   field('New Information This Cycle', context.newInformation)
 

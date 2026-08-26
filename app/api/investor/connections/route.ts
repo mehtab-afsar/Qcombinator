@@ -6,6 +6,7 @@ import { log } from '@/lib/logger'
 import { sendConnectionAcceptedEmails } from '@/lib/email/send'
 import { getMyDemoInvestorId, investorConnectionOrFilter } from '@/lib/investor/demo-investor'
 import { getStartupDisplayName } from '@/lib/founder/display-name'
+import { createNotification } from '@/lib/notifications/create'
 
 // GET /api/investor/connections
 // Returns pending connection requests for the authenticated investor,
@@ -190,12 +191,11 @@ export async function PATCH(request: NextRequest) {
           .single()
         const investorName = (ip as { full_name?: string } | null)?.full_name ?? 'An investor'
         const firmName     = (ip as { firm_name?: string }  | null)?.firm_name  ?? ''
-        await supabase.from('notifications').insert({
-          user_id:  updated.founder_id,
+        await createNotification({
+          userId:   updated.founder_id,
           type:     'connection_accepted',
           title:    `${investorName}${firmName ? ` from ${firmName}` : ''} accepted your connection request`,
-          read:     false,
-          metadata: { connection_id: requestId, investor_id: user.id },
+          metadata: { connection_id: requestId, investor_id: user.id, href: '/founder/messages' },
         })
       } catch (notifErr) {
         log.error('PATCH /api/investor/connections accept notification', { notifErr })

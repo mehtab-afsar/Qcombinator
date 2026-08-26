@@ -8,7 +8,10 @@ export interface SidebarNotification {
   agentId: string
   action_type: string
   title: string
+  body?: string
   time: string
+  read?: boolean
+  metadata?: Record<string, unknown>
 }
 
 export interface FounderProfile {

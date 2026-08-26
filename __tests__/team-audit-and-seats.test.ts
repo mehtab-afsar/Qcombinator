@@ -85,28 +85,38 @@ describe('every team action writes an append-only audit row', () => {
   })
 })
 
-describe('team events that affect a specific person notify them, through the existing notifications table', () => {
+describe('team events that affect a specific person notify them, through createNotification()', () => {
   it('joining notifies whoever sent the invite, not the whole team', () => {
     const src = read('app/api/team/join/route.ts')
-    expect(src).toContain("user_id:  invite.invited_by")
+    expect(src).toContain('createNotification')
+    expect(src).toContain('userId:   invite.invited_by')
     expect(src).toContain("type:     'team_member_joined'")
   })
 
   it('a role change notifies the person whose role changed', () => {
     const src = read('app/api/team/members/route.ts')
     const block = src.slice(src.indexOf("event: 'role_changed'"), src.indexOf("event: 'role_changed'") + 500)
+    expect(block).toContain('createNotification')
     expect(block).toContain("type:     'team_role_changed'")
-    expect(block).toContain('user_id:  userId')
+    expect(block).toContain('userId:   userId')
   })
 
   it('being removed notifies the removed person, but leaving voluntarily does not self-notify', () => {
     const src = read('app/api/team/members/route.ts')
     expect(src).toContain("type:     'team_member_removed'")
-    expect(src).toMatch(/if\s*\(\s*!selfRemoval\s*\)\s*\{[\s\S]{0,100}notifications/)
+    expect(src).toMatch(/if\s*\(\s*!selfRemoval\s*\)\s*\{[\s\S]{0,100}createNotification/)
   })
 
-  it('the new notification types are registered so the bell renders them, not the Bell fallback', () => {
-    const src = read('features/shared/components/NotificationPanel.tsx')
+  it('all three go through the one shared writer, not a hand-rolled .insert', () => {
+    for (const route of ['app/api/team/join/route.ts', 'app/api/team/members/route.ts']) {
+      const src = read(route)
+      expect(src).toContain("from '@/lib/notifications/create'")
+      expect(src).not.toMatch(/\.from\('notifications'\)\.insert/)
+    }
+  })
+
+  it('the notification types are registered so the bell renders them, not the Bell fallback', () => {
+    const src = read('lib/notifications/registry.ts')
     for (const type of ['team_member_joined', 'team_role_changed', 'team_member_removed']) {
       expect(src).toContain(`${type}:`)
     }

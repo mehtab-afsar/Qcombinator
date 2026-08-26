@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { encodeToken } from '@/lib/email/unsubscribe-token'
 import { APP_URL, APP_DOMAIN } from '@/lib/constants/app'
 import { log } from '@/lib/logger'
+import { createNotifications } from '@/lib/notifications/create'
 
 /**
  * Trigger deal-flow alerts — in-app notification AND email — for investors when a startup's
@@ -75,10 +76,13 @@ export async function triggerDealFlowAlerts(
 
     const companyName = founder.startup_name ?? founder.full_name ?? 'A startup'
 
-    // Insert in-app notifications in bulk
-    const notificationRows = eligible.map(inv => ({
-      user_id:  inv.user_id,
-      type:     'qscore_update',
+    // Fan out in-app notifications. Real type this time — was 'qscore_update', which points an
+    // investor recipient at their own (nonexistent) /founder/dashboard; 'deal_flow' is the type
+    // this actually is. dedupeKey allows a re-alert on a later, further improvement (newScore
+    // changes the key) but not a duplicate for the same investor/founder/score triple.
+    await createNotifications(eligible.map(inv => ({
+      userId:   inv.user_id,
+      type:     'deal_flow' as const,
       title:    `${companyName} Q-Score improved by ${improvement} points`,
       body:     `${companyName} now has a Q-Score of ${newScore}. Their profile matches your investment thesis.`,
       metadata: {
@@ -89,16 +93,8 @@ export async function triggerDealFlowAlerts(
         industry:     founder.industry,
         stage:        founder.stage,
       },
-      read: false,
-    }))
-
-    const { error: insertErr } = await supabase
-      .from('notifications')
-      .insert(notificationRows)
-
-    if (insertErr) {
-      log.error('triggerDealFlowAlerts notifications insert', { insertErr })
-    }
+      dedupeKey: `deal_flow:${inv.user_id}:${founderId}:${newScore}`,
+    })))
 
     await sendDealFlowEmails({
       founderId, companyName, founderName: founder.full_name ?? 'The founder',
