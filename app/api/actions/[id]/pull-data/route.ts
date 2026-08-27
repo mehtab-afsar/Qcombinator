@@ -1,5 +1,5 @@
 /**
- * POST /api/actions/:actionId/pull-data — the founder-triggered pull, and the ONLY place in this
+ * POST /api/actions/:id/pull-data — the founder-triggered pull, and the ONLY place in this
  * product that calls Gmail-read or PostHog to fill `founder_pulled_data`.
  *
  * ⚠️ FOUNDER-TRIGGERED ONLY, ON PURPOSE. `lib/rhythm/run.ts`'s `pulledDataContextFor` only ever
@@ -45,13 +45,13 @@ function renderGmailThreads(threads: Awaited<ReturnType<typeof searchGmailThread
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ actionId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const off = newModelOff()
   if (off) return off
 
   try {
-    const { actionId } = await params
+    const { id: actionId } = await params
     const provider = PULL_SOURCES[actionId]
     if (!provider) return NextResponse.json({ error: `'${actionId}' does not accept a data pull` }, { status: 404 })
 
@@ -84,7 +84,7 @@ export async function POST(
       const status = err.code === 'not_connected' ? 404 : 400
       return NextResponse.json({ error: err.message, code: err.code }, { status })
     }
-    log.error('POST /api/actions/[actionId]/pull-data', { err })
+    log.error('POST /api/actions/[id]/pull-data', { err })
     return NextResponse.json({ error: 'Pull failed' }, { status: 500 })
   }
 }

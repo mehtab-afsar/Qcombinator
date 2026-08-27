@@ -139,7 +139,7 @@ export interface CompanyContext {
    * `founderContacts`/`pipelineLeads` above.
    *
    * Unlike `stripeMetrics`, this is NOT synced automatically — a Connector was actually called,
-   * but only once, by the founder's own click (`app/api/actions/[actionId]/pull-data/route.ts`),
+   * but only once, by the founder's own click (`app/api/actions/[id]/pull-data/route.ts`),
    * never from inside a Rhythm cycle step. That is the whole reason this reaches the model as a
    * cache read rather than a live call: composing this package must never itself talk to a
    * Connector (ADR-026).

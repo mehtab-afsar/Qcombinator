@@ -8,7 +8,7 @@
  * ⚠️ SCOPE OF THIS FILE, ON PURPOSE. This is the CONNECTOR — OAuth, vault storage, revoke, and an
  * on-demand way to search/read a thread. As of the `founder_pulled_data` mechanism, its result IS
  * reachable from `monitor_and_classify_responses`'s Company Context (P005) — but only ever via a
- * founder's explicit click (`app/api/actions/[actionId]/pull-data/route.ts`), which caches the
+ * founder's explicit click (`app/api/actions/[id]/pull-data/route.ts`), which caches the
  * result; `lib/rhythm/run.ts`'s `pulledDataContextFor` then only ever reads that cache. Nothing
  * here is called automatically from inside a Rhythm cycle step — a cycle making a live call to
  * this connector on its own, unattended, is still the "autonomous external signal" capability a

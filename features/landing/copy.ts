@@ -4,18 +4,62 @@
  * from the same FAQS array that drives the visible accordion.
  */
 
-export const HERO_SCORE = 84;
+// ─── The Founder Ladder — same Q-Score, reframed as an archetype ────────────────────────────
+// Five archetypes on one axis: how much of the deciding, executing, growing, and managing still
+// runs through the founder by hand. Each stop maps onto a real Q-Score band (0–100) — this is
+// NOT a second score alongside Q-Score, it's the same number read as "who you are" instead of
+// "what you scored." Stop 4 (70–89) deliberately starts at the product's existing raise-ready
+// threshold (see STEPS below, "Raise when you hit 70") — the tie-in is intentional, not a
+// coincidence of round numbers.
+//
+// NOTE on "Leverage": UX_SPEC_the_frame.md §6 bans "leverage" as filler copy elsewhere in the
+// product. Here it names a real feature/archetype ("Founder Leverage Check", "AI Leveraged",
+// "Leverage Leak") — an explicit, approved exception, not filler. Don't let its presence here
+// license reintroducing "leverage" as filler copy anywhere else.
+export const LADDER = [
+  { multiple: "1×",  archetype: "Founder Operated", scoreMin: 0,  scoreMax: 29,  note: "Every decision, every hire, every quarter runs through you." },
+  { multiple: "3×",  archetype: "AI Assisted",      scoreMin: 30, scoreMax: 49,  note: "AI writes faster, researches faster — you're still the bottleneck." },
+  { multiple: "5×",  archetype: "AI Leveraged",     scoreMin: 50, scoreMax: 69,  note: "AI owns real work between check-ins, not just drafts." },
+  { multiple: "8×",  archetype: "Agentic Operator", scoreMin: 70, scoreMax: 89,  note: "The same 70 that unlocks the marketplace — AI now runs whole functions." },
+  { multiple: "10×", archetype: "10× Founder",      scoreMin: 90, scoreMax: 100, note: "You decide direction. Everything else executes without you." },
+] as const;
 
-// ─── The Rise — floors of the company, bottom → top ──────────────────────────
-// Each floor is a milestone in going from nothing to fundable. Score is the
-// approximate Q-Score once that floor is built.
-export const FLOORS = [
-  { label: "Founding team",     sub: "An idea and the people to build it", score: 22 },
-  { label: "First customers",   sub: "Someone pays. It's real now.",       score: 41 },
-  { label: "Product-market fit", sub: "They'd be gutted without you",       score: 58 },
-  { label: "Revenue engine",    sub: "Unit economics that survive diligence", score: 70 },
-  { label: "Fundable",          sub: "Q-Score crosses 70 — you're ready",   score: 78 },
-  { label: "Raise",             sub: "Matched investors come to you",       score: 84 },
+// ─── Hero — headline, sub, hero-line band ────────────────────────────────────────────────────
+// Canonicalized on the source spec's HTML numbers (8×, "3 minutes") over its own inconsistent
+// plain-text variant (7×, "90 seconds"/"8 questions"). No "8 questions" claim carried into this
+// copy — no quiz exists yet, this section is a teaser/hook only.
+export const HERO_COPY = {
+  eyebrow: "Founder Leverage Check · 3 minutes",
+  headlinePre: "Are you a ",
+  headlineGradient: "10×",
+  headlinePost: " founder?",
+  sub: "You already know you should be using more AI. You probably open ChatGPT before you open your inbox. But knowing where AI gives you the most leverage is a different question — and most founders can't answer it.",
+  flaggedLine: "Most founders use AI to write faster, research faster, get more done — and still stay the bottleneck for every decision, every hire, every quarter.",
+  closerLine: "The next step isn't using more AI. It's becoming a 10× Founder.",
+  scrollCue: "Find your number ↓",
+  ctaLabel: "Discover my Founder Leverage",
+  tagline: "Build more company. Not more management.",
+} as const;
+
+// ─── Premise — the paragraph beside the ladder, plus the relocated Problem-section stats ────
+// PROBLEMS (below) used to illustrate a stalled-tower graphic next to these three stats — that
+// illustration is retired along with the old floors/building hero. The numbers themselves are
+// kept and relocated here as the ladder's evidentiary anchor, not deleted.
+export const PREMISE = {
+  eyebrow: "The scale",
+  heading: "A 10× Founder doesn't work 10× harder. They multiply — without multiplying the workload.",
+  body: "Every founder is somewhere on this line. Most stall out at 3× — using AI as a faster assistant, never handing it the keys. The gap between where you are and 10× isn't effort. It's which decisions, which programs, which parts of running the company you're still holding onto by hand.",
+  statValue: "3 min",
+  statLabel: "to find your position on the scale — no signup wall, no sales call, just your number.",
+  closingLine: "Founder in Command. Agents in Execution.",
+} as const;
+
+// ─── Discover — what the check gives you (4 cards) ───────────────────────────────────────────
+export const DISCOVER = [
+  { n: "01", title: "Your Founder Leverage",      body: "Are you operating at 1×, 3×, 5× — or closing in on 10×? A precise reading, not a vibe." },
+  { n: "02", title: "Your Founder Archetype",     body: "Founder Operated → AI Assisted → AI Leveraged → Agentic Operator → 10× Founder. Where you sit today." },
+  { n: "03", title: "Your biggest Leverage Leak", body: "The single place AI could take the most work off your desk right now — named, not generalized." },
+  { n: "04", title: "Your next move",             body: "Where to apply AI next to move up the scale — and how much company that could let you build." },
 ] as const;
 
 // ─── Q-Score parameters (P1–P6) ──────────────────────────────────────────────
@@ -91,7 +135,7 @@ export const STEPS = [
   { n: "03", title: "Raise when you hit 70", body: "At Q-Score ≥ 70, your profile unlocks to thesis-matched investors. They find you — you don't cold email 200 people." },
 ] as const;
 
-// ─── Problem section ─────────────────────────────────────────────────────────
+// ─── Problem stats — rendered inside Ladder.tsx's premise section ────────────
 export const PROBLEMS = [
   { stat: "92%", label: "of first-time founders pitch before they're fundable", body: "They burn their best investor introductions on a company that isn't ready — and first impressions don't reset." },
   { stat: "6 mo", label: "wasted on average in premature fundraising", body: "Time spent chasing meetings that were never going to convert is time not spent fixing what investors actually flagged." },

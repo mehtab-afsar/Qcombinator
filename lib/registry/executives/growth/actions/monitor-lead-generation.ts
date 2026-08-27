@@ -9,7 +9,7 @@ import type { ActionDef } from '../../../types'
  * touches nothing outside the product on its own, so it runs autonomously — approval
  * gates exist ONLY at the Connector boundary, never on internal work
  * (ADR-002, ADR-004). If the founder has clicked "Pull from PostHog" (see
- * `founder_pulled_data` / `app/api/actions/[actionId]/pull-data/route.ts`), real trend data
+ * `founder_pulled_data` / `app/api/actions/[id]/pull-data/route.ts`), real trend data
  * reaches Company Context as "Real Data You Pulled In" — cached from the founder's last click,
  * never fetched by this Action on its own initiative.
  *

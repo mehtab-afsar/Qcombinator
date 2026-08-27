@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
-import { L, DUSK } from "../theme";
+import { L } from "../theme";
 import { BrandMark } from "@/features/shared/components/BrandMark";
 
 const LINKS = [
@@ -24,17 +24,18 @@ export function Nav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // over the dusk hero → dark glass pill; on the light page → cream pill
-  const light = scrolled || open;
-  const pillBg = light ? "rgba(249,247,242,0.92)" : "rgba(20,27,51,0.5)";
-  const pillBorder = light ? "rgba(232,226,217,0.8)" : "rgba(245,239,228,0.16)";
-  const pillShadow = light ? "0 6px 26px rgba(24,22,15,0.10)" : "0 6px 26px rgba(6,9,20,0.35)";
-  const fg = light ? L.ink : DUSK.text;
-  const fgMuted = light ? L.muted : "rgba(245,239,228,0.72)";
-  const markBg = light ? L.ink : DUSK.text;
-  const markFg = light ? L.bg : "#141B33";
-  const ctaBg = light ? L.ink : DUSK.text;
-  const ctaFg = light ? L.bg : "#141B33";
+  // The hero is light end-to-end now (no more dusk band at the top of the page), so the nav
+  // pill only ever needs one treatment — no dark/light branch to stay legible over a dark hero.
+  // `scrolled` still nudges the shadow slightly, ordinary navbar polish.
+  const pillBg = "rgba(249,247,242,0.92)";
+  const pillBorder = "rgba(232,226,217,0.8)";
+  const pillShadow = scrolled ? "0 6px 26px rgba(24,22,15,0.14)" : "0 4px 18px rgba(24,22,15,0.08)";
+  const fg = L.ink;
+  const fgMuted = L.muted;
+  const markBg = L.ink;
+  const markFg = L.bg;
+  const ctaBg = L.ink;
+  const ctaFg = L.bg;
 
   return (
     <div style={{ position: "fixed", top: 14, left: 0, right: 0, zIndex: 50, display: "flex", justifyContent: "center", padding: "0 16px", pointerEvents: "none" }}>
@@ -60,9 +61,9 @@ export function Nav() {
 
           <div className="lp-nav-links" style={{ display: "flex", alignItems: "center", gap: 24 }}>
             {LINKS.map((l) => (
-              <a key={l.href} href={l.href} className={light ? "lp-nav-a" : "lp-nav-a-dark"} style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>{l.label}</a>
+              <a key={l.href} href={l.href} className="lp-nav-a" style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>{l.label}</a>
             ))}
-            <Link href="/login" className={light ? "lp-nav-a" : "lp-nav-a-dark"} style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>Sign in</Link>
+            <Link href="/login" className="lp-nav-a" style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>Sign in</Link>
             <Link href="/founder/onboarding" className="lp-cta" style={{ background: ctaBg, color: ctaFg, padding: "8px 16px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, textDecoration: "none", transition: "background 0.3s, color 0.3s" }}>Get your Q-Score</Link>
           </div>
 

@@ -7,7 +7,7 @@ import type { ActionDef } from '../../../types'
  *
  * Internal analysis, not a live inbox read by default — `irreversible: false`, no `connector`
  * (a real read would be irreversible-shaped, and this Action isn't). If the founder has clicked
- * "Pull from Gmail" (see `founder_pulled_data` / `app/api/actions/[actionId]/pull-data/route.ts`),
+ * "Pull from Gmail" (see `founder_pulled_data` / `app/api/actions/[id]/pull-data/route.ts`),
  * the cached result reaches this Action's Company Context as "Real Data You Pulled In" — real,
  * but only ever as current as the founder's last click, never a live feed fetched on this Action's
  * own initiative.

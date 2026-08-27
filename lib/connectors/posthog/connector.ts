@@ -7,7 +7,7 @@
  *
  * ⚠️ SCOPE OF THIS FILE, ON PURPOSE. As of the `founder_pulled_data` mechanism, this feeds
  * `monitor_lead_generation` (P003) — but only via a founder's explicit click
- * (`app/api/actions/[actionId]/pull-data/route.ts`), which caches the result; `lib/rhythm/run.ts`'s
+ * (`app/api/actions/[id]/pull-data/route.ts`), which caches the result; `lib/rhythm/run.ts`'s
  * `pulledDataContextFor` then only ever reads that cache, never this connector directly. A Rhythm
  * cycle step calling this on its own, unattended, is still the "autonomous external signal"
  * decision a founder pilot hasn't yet justified. Whatever calls `queryPostHogTrends` must trace

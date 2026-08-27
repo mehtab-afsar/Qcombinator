@@ -8,7 +8,7 @@
  * null)` regardless — a cache lookup must never break a cycle.
  *
  * ONE row per (founder, action) — see the `founder_pulled_data` migration's own comment for why
- * this is a cache, not a log. Only `app/api/actions/[actionId]/pull-data/route.ts` ever writes to
+ * this is a cache, not a log. Only `app/api/actions/[id]/pull-data/route.ts` ever writes to
  * this table; this file only ever reads it.
  */
 

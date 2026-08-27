@@ -24,7 +24,7 @@ const PULL_SOURCE_LABEL: Record<'gmail_read' | 'posthog', string> = {
 }
 
 /** A founder-triggered pull of real Connector data for one Action — never automatic. Nothing
- *  runs until this button is clicked; see app/api/actions/[actionId]/pull-data/route.ts. */
+ *  runs until this button is clicked; see app/api/actions/[id]/pull-data/route.ts. */
 function PullDataControl({ action }: { action: ActionSummary }) {
   const [query, setQuery] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
