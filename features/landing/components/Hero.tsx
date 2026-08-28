@@ -94,7 +94,7 @@ export function Hero() {
         </motion.p>
 
         <motion.div variants={rise} style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
-          <Link href="/founder/onboarding" className="lp-cta lp-cta-glow" style={{
+          <Link href="/leverage-check" className="lp-cta lp-cta-glow" style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             background: L.ink, color: L.bg, padding: "13px 26px", borderRadius: 999,
             fontSize: 15, fontWeight: 600, textDecoration: "none",

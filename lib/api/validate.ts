@@ -53,6 +53,7 @@ export const signupSchema = z.object({
   gtmStrategy:      z.string().max(300).optional(),    // Go-to-market strategy
   founderBackground: z.array(z.string()).optional(),   // Array of background tags
   teamToken:        z.string().max(128).optional(),    // team invite token — auto-joins workspace on signup
+  leverageCheckId:  z.string().uuid().optional(),       // links a converted signup back to its leverage-check submission
 })
 
 export type SignupInput = z.infer<typeof signupSchema>

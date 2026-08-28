@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       email, password, fullName,
       startupName, companyName, website, industry, stage,
       revenueStatus, fundingStatus, teamSize, founderName,
-      teamToken,
+      teamToken, leverageCheckId,
       problemStatement, targetCustomer, location, tagline,
     } = parsed.data;
 
@@ -193,6 +193,21 @@ export async function POST(request: NextRequest) {
           }
         } catch (err) {
           log.warn('[signup] teamToken auto-join failed (non-fatal)', { err: (err as Error)?.message })
+        }
+      })()
+    }
+
+    // Link a converted signup back to its leverage-check submission, if it came from that
+    // funnel. Never awaited, never fails signup — same non-blocking shape as teamToken above.
+    if (leverageCheckId) {
+      void (async () => {
+        try {
+          await supabaseAdmin
+            .from('leverage_check_submissions')
+            .update({ linked_founder_id: authData.user.id, linked_at: new Date().toISOString() })
+            .eq('id', leverageCheckId)
+        } catch (err) {
+          log.warn('[signup] leverageCheckId link failed (non-fatal)', { err: (err as Error)?.message })
         }
       })()
     }

@@ -102,10 +102,19 @@ function FounderOnboardingForm() {
   // one. Google sign-up (below) doesn't read this yet — that path always creates its own
   // workspace via /auth/callback, a separate gap not covered by this fix.
   const teamToken = searchParams.get('teamToken')
+  // Set when this signup came from the 10x Founder Leverage Check (features/leverage-check/**)
+  // — carried through to /api/auth/signup so the converted signup links back to its submission
+  // row (leverage_check_submissions.linked_founder_id). email prefills Step 1's email field so
+  // the founder doesn't retype what they already gave the quiz's final CTA.
+  const leverageCheckId = searchParams.get('leverageCheckId')
+  const emailParam = searchParams.get('email')
   const reducedMotion = useMotionPrefs()
   const [page, setPage] = useState(1)
   const [dir, setDir] = useState(1)
-  const [form, setForm] = useState<FormData>(EMPTY)
+  // useSearchParams() already URL-decodes — no further decoding needed here.
+  const [form, setForm] = useState<FormData>(() => (
+    emailParam ? { ...EMPTY, email: emailParam } : EMPTY
+  ))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPwd, setShowPwd] = useState(false)
@@ -166,6 +175,7 @@ function FounderOnboardingForm() {
             location: form.location, tagline: form.tagline,
             marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
             ...(teamToken ? { teamToken } : {}),
+            ...(leverageCheckId ? { leverageCheckId } : {}),
           }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

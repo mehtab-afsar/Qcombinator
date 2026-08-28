@@ -19,6 +19,9 @@ const RATE_LIMIT_RULES: Record<string, { requests: number; window: string }> = {
 
   '/api/auth/signup':         { requests: 5,  window: '60 m' },
   '/api/auth/reset-password': { requests: 3,  window: '15 m' },
+
+  '/api/leverage-check/submit':     { requests: 8,  window: '1 m' }, // public, anonymous, LLM-cost-driven
+  '/api/leverage-check/link-email': { requests: 10, window: '1 m' }, // public, anonymous, DB write only
 }
 
 let _redis: Redis | null = null
@@ -71,6 +74,7 @@ function matchRateLimit(pathname: string): { rule: { requests: number; window: s
  *  - /login, /signup, /
  *  - /founder/onboarding (new users signing up)
  *  - /founder/join, /investor/join (invite links — must work for a logged-out invitee)
+ *  - /leverage-check (public anonymous quiz — no session check needed)
  *  - /investor/onboarding
  *  - /api/*  (API routes handle their own auth)
  *  - /s/*    (public PMF survey pages)
@@ -92,6 +96,7 @@ const PUBLIC_PATHS = [
   '/founder/onboarding',
   '/founder/profile-builder',
   '/investor/onboarding',
+  '/leverage-check',
 ]
 
 // Requires auth, but exempt from the email-confirmation gate below — an unconfirmed founder or
