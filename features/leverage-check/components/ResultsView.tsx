@@ -12,8 +12,10 @@ import type { LeverageCheckApiResult } from "./LeverageCheckPage";
  * lines as section headers (e.g. "YOUR DIAGNOSIS"). Render each non-empty line as a paragraph,
  * styling the ones that read as a header (short, fully uppercase) as a heading instead of prose.
  */
-function ReportText({ text }: { text: string }) {
+function ReportText({ text, dark = false }: { text: string; dark?: boolean }) {
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const headingColor = dark ? green : blue;
+  const bodyColor = dark ? bg : ink;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {lines.map((line, i) => {
@@ -21,16 +23,38 @@ function ReportText({ text }: { text: string }) {
         return isHeading ? (
           <p key={i} style={{
             fontFamily: font.family.mono, fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase",
-            color: blue, margin: i === 0 ? "0" : "18px 0 0", fontWeight: 700,
+            color: headingColor, margin: i === 0 ? "0" : "18px 0 0", fontWeight: 700,
           }}>
             {line}
           </p>
         ) : (
-          <p key={i} style={{ fontSize: 15, lineHeight: 1.7, color: ink, margin: 0 }}>{line}</p>
+          <p key={i} style={{ fontSize: 15, lineHeight: 1.7, color: bodyColor, margin: 0 }}>{line}</p>
         );
       })}
     </div>
   );
+}
+
+/**
+ * The short result's own text opens with "YOUR FOUNDER LEVERAGE / [multiple]x / [ARCHETYPE]"
+ * per the system prompt's format — but the card above already renders that as a dedicated
+ * badge (the big serif multiple + archetype label), so showing it again as plain text reads as
+ * a duplicated, badly-styled repeat of the same three lines. Strip that leading block once it's
+ * been visually covered, and start the prose from the founder's personalised sentence.
+ */
+function stripLeverageHeader(text: string, multiple: number, archetype: string): string {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const multiplePattern = new RegExp(`^${multiple}x$`, "i");
+  while (lines.length > 0) {
+    const line = lines[0];
+    const isHeaderLine =
+      /^YOUR FOUNDER LEVERAGE$/i.test(line) ||
+      multiplePattern.test(line) ||
+      line.toUpperCase() === archetype.toUpperCase();
+    if (!isHeaderLine) break;
+    lines.shift();
+  }
+  return lines.join("\n");
 }
 
 function DimensionBars({ scores }: { scores: LeverageCheckApiResult["dimensionScores"] }) {
@@ -66,7 +90,7 @@ export function ResultsView({ result }: { result: LeverageCheckApiResult }) {
           {result.archetype}
         </p>
         <div style={{ textAlign: "left" }}>
-          <ReportText text={result.shortResult} />
+          <ReportText text={stripLeverageHeader(result.shortResult, result.multiple, result.archetype)} dark />
         </div>
       </div>
 
