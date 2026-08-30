@@ -12,12 +12,21 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
 
+  // The OAuth callback redirects here with a reason when it can't let someone through. Nothing
+  // read it before, so every one of those bounces landed on a blank form with no explanation —
+  // a dead end that looks like the sign-in button simply didn't work.
+  const REDIRECT_ERRORS: Record<string, string> = {
+    not_open: "Edge Alpha isn't open for new accounts yet. If you've been given early access, sign in with the email address it was granted to.",
+    oauth_failed: "That sign-in didn't complete. Try again.",
+    missing_code: "That sign-in link was incomplete. Try again.",
+  };
+
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [showPwd,  setShowPwd]  = useState(false);
   const [loading,  setLoading]  = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
-  const [error,    setError]    = useState("");
+  const [error,    setError]    = useState(REDIRECT_ERRORS[searchParams.get("error") ?? ""] ?? "");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

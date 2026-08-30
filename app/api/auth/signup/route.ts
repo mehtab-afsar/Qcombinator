@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/server';
 import { parseBody, signupSchema } from '@/lib/api/validate';
 import { log } from '@/lib/logger'
+import { signupAllowed, SIGNUP_CLOSED_MESSAGE } from '@/lib/auth/signup-access'
 import { sendWelcomeEmail } from '@/lib/email/send'
 import { FOUNDER_PLAN_LIMITS, getNextMonthDate } from '@/lib/billing/plans'
 import { mapStage, mapIndustry, mapRevenue } from '@/features/founder/services/signup-mappings.service'
@@ -21,6 +22,15 @@ export async function POST(request: NextRequest) {
       teamToken, leverageCheckId,
       problemStatement, targetCustomer, location, tagline,
     } = parsed.data;
+
+
+    // Pre-launch gate (lib/auth/signup-access.ts) — checked BEFORE any account is created, and
+    // failing closed. A teamToken is not an exemption: an invite joins the inviter's workspace,
+    // which is still an account coming into existence.
+    if (!signupAllowed(email)) {
+      log.warn('signup refused — pre-launch gate', { domain: email.split('@')[1] ?? 'unknown' })
+      return NextResponse.json({ error: SIGNUP_CLOSED_MESSAGE }, { status: 403 })
+    }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) throw new Error('Missing env: NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing env: SUPABASE_SERVICE_ROLE_KEY')

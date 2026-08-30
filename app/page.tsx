@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LandingPage } from "@/features/landing/components/LandingPage";
+import { isSignupOpen } from "@/lib/auth/signup-access";
 import { FAQS } from "@/features/landing/copy";
 import { APP_NAME, APP_URL } from "@/lib/constants/app";
 
@@ -55,7 +56,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <LandingPage />
+      <LandingPage signupOpen={isSignupOpen()} />
     </>
   );
 }

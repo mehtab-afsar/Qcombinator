@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { verifyAuth } from '@/lib/auth/verify'
+import { signupAllowed, SIGNUP_CLOSED_MESSAGE } from '@/lib/auth/signup-access'
 import { parseBody, investorOnboardingSchema } from '@/lib/api/validate'
 import { log } from '@/lib/logger'
 import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
@@ -26,6 +27,21 @@ export async function POST(request: NextRequest) {
     const fullName = [firstName, lastName].filter(Boolean).join(' ') || (email ? email.split('@')[0] : 'Investor')
 
     const supabase = await createClient()
+
+    // Pre-launch gate (lib/auth/signup-access.ts). The OAuth callback signs a refused newcomer
+    // out, but the session Google minted exists for the moment before that — so the route that
+    // actually WRITES the profile is gated too rather than trusting the redirect to have stopped
+    // them. An existing founder adding an investor side is not a new account and passes.
+    if (!signupAllowed(auth.user.email)) {
+      const { data: founder } = await supabase
+        .from('founder_profiles').select('id').eq('user_id', user.id).maybeSingle()
+      if (!founder) {
+        log.warn('investor onboarding refused — pre-launch gate', {
+          domain: auth.user.email?.split('@')[1] ?? 'unknown',
+        })
+        return NextResponse.json({ error: SIGNUP_CLOSED_MESSAGE }, { status: 403 })
+      }
+    }
 
     const { data: profile, error } = await supabase
       .from('investor_profiles')

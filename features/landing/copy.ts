@@ -1,3 +1,8 @@
+/** Shown in place of every signup CTA while the pre-launch gate is closed
+ *  (lib/auth/signup-access.ts). One definition — it appears in the nav, the pricing
+ *  cards and the closing CTA, and three copies would drift. */
+export const LAUNCHING_SOON = "Launching soon";
+
 /**
  * Landing page content — single source of truth for copy.
  * Plain module (no "use client") so the server page can build JSON-LD

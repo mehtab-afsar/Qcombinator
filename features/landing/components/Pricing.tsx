@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
-import { PRICING } from "../copy";
+import { PRICING, LAUNCHING_SOON } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
 
-function Plan({ plan, featured }: { plan: typeof PRICING.free | typeof PRICING.pro; featured?: boolean }) {
+function Plan({ plan, featured, signupOpen }: { plan: typeof PRICING.free | typeof PRICING.pro; featured?: boolean; signupOpen: boolean }) {
   return (
     <div
       style={{
@@ -35,24 +35,38 @@ function Plan({ plan, featured }: { plan: typeof PRICING.free | typeof PRICING.p
           </li>
         ))}
       </ul>
-      <Link
-        href="/founder/onboarding"
-        className="lp-cta"
-        style={{
-          display: "block", textAlign: "center",
-          background: featured ? L.bg : L.ink,
-          color: featured ? L.ink : L.bg,
-          padding: "13px 24px", borderRadius: 999,
-          fontSize: 14.5, fontWeight: 600, textDecoration: "none",
-        }}
-      >
-        {plan.cta}
-      </Link>
+      {signupOpen ? (
+        <Link
+          href="/founder/onboarding"
+          className="lp-cta"
+          style={{
+            display: "block", textAlign: "center",
+            background: featured ? L.bg : L.ink,
+            color: featured ? L.ink : L.bg,
+            padding: "13px 24px", borderRadius: 999,
+            fontSize: 14.5, fontWeight: 600, textDecoration: "none",
+          }}
+        >
+          {plan.cta}
+        </Link>
+      ) : (
+        <span
+          style={{
+            display: "block", textAlign: "center",
+            background: featured ? L.bg : L.ink,
+            color: featured ? L.ink : L.bg,
+            padding: "13px 24px", borderRadius: 999,
+            fontSize: 14.5, fontWeight: 600, opacity: 0.55,
+          }}
+        >
+          {LAUNCHING_SOON}
+        </span>
+      )}
     </div>
   );
 }
 
-export function Pricing() {
+export function Pricing({ signupOpen }: { signupOpen: boolean }) {
   return (
     <section id="pricing" style={{ padding: "100px 24px", maxWidth: 900, margin: "0 auto", scrollMarginTop: 80 }}>
       <Reveal>
@@ -65,8 +79,8 @@ export function Pricing() {
         </p>
       </Reveal>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
-        <Reveal><Plan plan={PRICING.free} /></Reveal>
-        <Reveal delay={0.1}><Plan plan={PRICING.pro} featured /></Reveal>
+        <Reveal><Plan signupOpen={signupOpen} plan={PRICING.free} /></Reveal>
+        <Reveal delay={0.1}><Plan signupOpen={signupOpen} plan={PRICING.pro} featured /></Reveal>
       </div>
     </section>
   );

@@ -14,7 +14,10 @@ import { Faq } from "./Faq";
 import { FinalCta } from "./FinalCta";
 import { Footer } from "./Footer";
 
-export function LandingPage() {
+/** @param signupOpen resolved on the SERVER (app/page.tsx) from the real gate, so the page and
+ *  the API can never disagree about whether the product is open. Cosmetic either way — the lock
+ *  itself is lib/auth/signup-access.ts, applied at every account-creating route. */
+export function LandingPage({ signupOpen }: { signupOpen: boolean }) {
   // The how-it-works section is scroll-position-driven (useScroll). Browsers restore the
   // previous scroll offset on reload by default, which can momentarily land mid-way through
   // that pinned section before the full page layout has settled — showing a flash of the
@@ -29,7 +32,7 @@ export function LandingPage() {
 
   return (
     <div style={{ background: L.bg, color: L.ink, minHeight: "100vh" }}>
-      <Nav />
+      <Nav signupOpen={signupOpen} />
       <main>
         <Hero />
         <Ladder />
@@ -37,9 +40,9 @@ export function LandingPage() {
         <HowItWorks />
         <CommandPreview />
         <SocialProof />
-        <Pricing />
+        <Pricing signupOpen={signupOpen} />
         <Faq />
-        <FinalCta />
+        <FinalCta signupOpen={signupOpen} />
       </main>
       <Footer />
     </div>

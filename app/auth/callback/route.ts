@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { sendWelcomeEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
+import { signupAllowed } from '@/lib/auth/signup-access'
 import { FOUNDER_PLAN_LIMITS, getNextMonthDate } from '@/lib/billing/plans'
 
 // Handles the OAuth redirect from Google (and any other provider).
@@ -46,6 +47,30 @@ export async function GET(req: NextRequest) {
     .eq('user_id', user.id)
     .maybeSingle()
 
+  const { data: founderProfile } = await supabase
+    .from('founder_profiles')
+    .select('id, onboarding_completed')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  // Pre-launch gate (lib/auth/signup-access.ts). Google creates the Supabase auth user before
+  // this route ever runs, so this is the earliest point at which a new person can be refused —
+  // and it is the ONLY gate on the OAuth path, which never touches /api/auth/signup.
+  //
+  // Refuses a genuinely NEW person only. Holding either profile means an existing account
+  // signing in, which includes the dual-role founder-who-also-invests handled just below; both
+  // lookups therefore have to happen before this decision, not after it.
+  //
+  // Signing out matters: without it they keep the session Google just minted and could call a
+  // profile-creating route directly, having been redirected away from the UI but not stopped.
+  if (!investorProfile && !founderProfile && !signupAllowed(user.email)) {
+    log.warn('[oauth-callback] signup refused — pre-launch gate', {
+      domain: user.email?.split('@')[1] ?? 'unknown',
+    })
+    await supabase.auth.signOut()
+    return NextResponse.redirect(`${origin}/login?error=not_open`)
+  }
+
   if (investorProfile) {
     return NextResponse.redirect(`${origin}/investor/dashboard`)
   }
@@ -69,12 +94,6 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.redirect(`${origin}/investor/onboarding`)
   }
-
-  const { data: founderProfile } = await supabase
-    .from('founder_profiles')
-    .select('id, onboarding_completed')
-    .eq('user_id', user.id)
-    .maybeSingle()
 
   if (founderProfile) {
     // A row existing is not the same as onboarding being done — the stub this route creates

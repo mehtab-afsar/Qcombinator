@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { L } from "../theme";
+import { LAUNCHING_SOON } from "../copy";
 import { BrandMark } from "@/features/shared/components/BrandMark";
 
 const LINKS = [
@@ -13,7 +14,7 @@ const LINKS = [
   { label: "FAQ", href: "#faq" },
 ];
 
-export function Nav() {
+export function Nav({ signupOpen }: { signupOpen: boolean }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -64,7 +65,13 @@ export function Nav() {
               <a key={l.href} href={l.href} className="lp-nav-a" style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>{l.label}</a>
             ))}
             <Link href="/login" className="lp-nav-a" style={{ fontSize: 13.5, color: fgMuted, textDecoration: "none", transition: "color 0.3s" }}>Sign in</Link>
-            <Link href="/founder/onboarding" className="lp-cta" style={{ background: ctaBg, color: ctaFg, padding: "8px 16px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, textDecoration: "none", transition: "background 0.3s, color 0.3s" }}>Get your Q-Score</Link>
+            {signupOpen ? (
+              <Link href="/founder/onboarding" className="lp-cta" style={{ background: ctaBg, color: ctaFg, padding: "8px 16px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, textDecoration: "none", transition: "background 0.3s, color 0.3s" }}>Get your Q-Score</Link>
+            ) : (
+              /* Not a link and not a disabled button — there is nowhere to go yet, so it reads
+                 as a status rather than as something broken the visitor should keep clicking. */
+              <span style={{ border: `1px solid ${fgMuted}`, color: fgMuted, padding: "8px 16px", borderRadius: 999, fontSize: 13.5, fontWeight: 600 }}>{LAUNCHING_SOON}</span>
+            )}
           </div>
 
           <button className="lp-nav-toggle" onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"} style={{ display: "none", background: "none", border: "none", color: fg, cursor: "pointer", padding: 6 }}>
@@ -78,7 +85,11 @@ export function Nav() {
               <a key={l.href} href={l.href} onClick={() => setOpen(false)} style={{ fontSize: 15, color: fgMuted, textDecoration: "none", padding: "9px 0" }}>{l.label}</a>
             ))}
             <Link href="/login" onClick={() => setOpen(false)} style={{ fontSize: 15, color: fgMuted, textDecoration: "none", padding: "9px 0" }}>Sign in</Link>
-            <Link href="/founder/onboarding" style={{ background: ctaBg, color: ctaFg, padding: "11px 18px", borderRadius: 999, fontSize: 14.5, fontWeight: 600, textDecoration: "none", textAlign: "center", marginTop: 8 }}>Get your Q-Score</Link>
+            {signupOpen ? (
+              <Link href="/founder/onboarding" style={{ background: ctaBg, color: ctaFg, padding: "11px 18px", borderRadius: 999, fontSize: 14.5, fontWeight: 600, textDecoration: "none", textAlign: "center", marginTop: 8 }}>Get your Q-Score</Link>
+            ) : (
+              <span style={{ border: `1px solid ${fgMuted}`, color: fgMuted, padding: "11px 18px", borderRadius: 999, fontSize: 14.5, fontWeight: 600, textAlign: "center", marginTop: 8 }}>{LAUNCHING_SOON}</span>
+            )}
           </div>
         )}
       </header>
