@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/features/auth/hooks/useAuth";
-import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 import { PostHogProvider } from "@/components/providers/PostHogProvider";
 import { ToastProvider } from "@/features/shared/hooks/useToast";
 import { Toaster } from "sonner";
@@ -52,15 +50,17 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body className={`${inter.className} ${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} antialiased`}>
+        {/* AuthProvider and QScoreProvider deliberately do NOT live here. Both pull in the
+            Supabase browser client (~197KB), so wrapping every route in them meant a stranger
+            reading the marketing page downloaded the whole authenticated app before seeing a
+            headline. They now sit in app/founder/layout.tsx and app/investor/layout.tsx — the
+            only places anything consumes them (audited: every useAuth/useQScore call site is
+            under one of those two route groups). */}
         <PostHogProvider>
-          <AuthProvider>
-            <QScoreProvider>
-              <ToastProvider>
-                {children}
-                <Toaster position="top-right" richColors />
-              </ToastProvider>
-            </QScoreProvider>
-          </AuthProvider>
+          <ToastProvider>
+            {children}
+            <Toaster position="top-right" richColors />
+          </ToastProvider>
         </PostHogProvider>
       </body>
     </html>

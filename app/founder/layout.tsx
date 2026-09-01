@@ -7,6 +7,8 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ToastStack } from "@/features/shared/components/Toast";
 import { useToast } from "@/features/shared/hooks/useToast";
 import { ExecutiveWorkspaceProvider } from "@/features/executive/hooks/useExecutiveWorkspace";
+import { AuthProvider } from "@/features/auth/hooks/useAuth";
+import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const pathname     = usePathname();
@@ -53,9 +55,15 @@ export default function FounderLayout({ children }: { children: React.ReactNode 
       {/* fallback=null prevents children from mounting twice (once in fallback, once in LayoutInner)
           which would re-fire useEffects after Suspense resolves during client hydration */}
       <Suspense fallback={null}>
-        <ExecutiveWorkspaceProvider>
-          <LayoutInner>{children}</LayoutInner>
-        </ExecutiveWorkspaceProvider>
+        {/* Moved down from the root layout so public pages never load the Supabase client.
+            Order matters: QScoreProvider and ExecutiveWorkspaceProvider both call useAuth. */}
+        <AuthProvider>
+          <QScoreProvider>
+            <ExecutiveWorkspaceProvider>
+              <LayoutInner>{children}</LayoutInner>
+            </ExecutiveWorkspaceProvider>
+          </QScoreProvider>
+        </AuthProvider>
       </Suspense>
     </ErrorBoundary>
   );

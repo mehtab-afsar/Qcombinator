@@ -7,12 +7,12 @@ import { EmailConfirmBanner } from "@/features/shared/components/EmailConfirmBan
 import { ToastStack } from "@/features/shared/components/Toast";
 import { useToast } from "@/features/shared/hooks/useToast";
 import { bg } from "@/lib/constants/colors";
+import { AuthProvider } from "@/features/auth/hooks/useAuth";
+import { QScoreProvider } from "@/features/qscore/hooks/useQScore";
 
-export default function InvestorLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+/** Split out so the providers below can wrap it — this body calls useToast(), and a component
+ *  cannot provide context to itself. */
+function InvestorLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { toasts, dismiss } = useToast();
 
@@ -44,5 +44,17 @@ export default function InvestorLayout({
         <ToastStack toasts={toasts} onDismiss={dismiss} />
       </div>
     </ErrorBoundary>
+  );
+}
+
+export default function InvestorLayout({ children }: { children: React.ReactNode }) {
+  // Moved down from the root layout so public pages never load the Supabase client.
+  // Order matters: QScoreProvider calls useAuth.
+  return (
+    <AuthProvider>
+      <QScoreProvider>
+        <InvestorLayoutInner>{children}</InvestorLayoutInner>
+      </QScoreProvider>
+    </AuthProvider>
   );
 }
