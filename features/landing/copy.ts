@@ -181,13 +181,28 @@ export const PROBLEMS = [
 // from real, verifiable customers. Deliberately no invented full names or company names (a
 // fabricated "Marcus Johnson, CEO, DataPipe" reads as a specific real, checkable person; a role
 // description doesn't claim that). SocialProof.tsx labels these as illustrative in the UI too.
-export const TESTIMONIALS = [
-  { role: "Seed-stage SaaS founder",        color: "#DC2626", quote: "The Marketing Adviser helped us rethink GTM from scratch. Edge Alpha matched us with the right investors. Raised seed in two weeks." },
-  { role: "Early-stage founder",            color: "#2563EB", quote: "Q-Score pinpointed our weak spots. The Finance Agent fixed them. Investors took us seriously and we closed 3× faster than expected." },
-  { role: "Early-stage VC partner",         color: "#16A34A", quote: "Every founder I see from Edge Alpha has actually prepared. The Q-Score filter alone saves me hours of due diligence each week." },
-  { role: "Infrastructure startup founder", color: "#7C3AED", quote: "Strategy Agent nailed our positioning before we talked to a single investor. Found our lead through the marketplace. Nothing like it." },
-  { role: "AI startup founder",             color: "#D97706", quote: "Finance AI helped us model unit economics properly. Q-Score went from 62 to 84. Series A closed six weeks later." },
-  { role: "General partner, early-stage fund", color: "#059669", quote: "More than half my deal flow now comes from Edge Alpha. The quality bar the platform sets is genuinely exceptional." },
+/**
+ * ⚠️ THIS REPLACED SIX INVENTED TESTIMONIALS. They were first-person quotes with specific
+ * outcomes — "raised seed in two weeks", "Q-Score went from 62 to 84, Series A closed six weeks
+ * later", "more than half my deal flow now comes from Edge Alpha" — attributed to unnamed people,
+ * for a product with no customers. A small "illustrative examples" caption sat underneath, which
+ * a reader clocks instantly; invented praise beneath a real product costs more trust than the
+ * empty space it fills, and the specific numbers read as claims rather than illustration.
+ *
+ * The section's heading is a true statement about the design — both sides genuinely do read the
+ * same number — so what follows now states what each side gets from it. Design intent, in the
+ * company's own voice, rather than testimony from people who do not exist. Replace with real
+ * quotes the moment there are real customers to quote.
+ */
+export const TWO_SIDES = [
+  {
+    side: "For founders",
+    body: "You find out what an investor will flag before they flag it. Six dimensions, one number, and a named next action — while there is still time to fix it rather than explain it.",
+  },
+  {
+    side: "For investors",
+    body: "A comparable reading across every founder in the marketplace, scored the same way. Diligence time goes to the ones who already did the work, instead of finding out who they are.",
+  },
 ] as const;
 
 // ─── Pricing ─────────────────────────────────────────────────────────────────
