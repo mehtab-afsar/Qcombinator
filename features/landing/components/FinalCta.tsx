@@ -29,9 +29,13 @@ export function FinalCta({ signupOpen }: { signupOpen: boolean }) {
             ) : (
               <span style={{ display: "inline-flex", alignItems: "center", background: L.bg, color: L.ink, padding: "15px 32px", borderRadius: 999, fontSize: 15.5, fontWeight: 600 }}>{LAUNCHING_SOON}</span>
             )}
-            <Link href="/login" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", background: "transparent", color: L.alpha(L.bg, 0.85), padding: "15px 26px", borderRadius: 999, border: `1px solid ${L.alpha(L.bg, 0.25)}`, fontSize: 15.5, fontWeight: 500, textDecoration: "none" }}>
-              I invest — show me deal flow
-            </Link>
+            {/* Same reasoning as Hero's: this promises an investor path, so it must not land on
+                the generic sign-in, where a new Google user becomes a founder. */}
+            {signupOpen && (
+              <Link href="/investor/onboarding" className="lp-cta" style={{ display: "inline-flex", alignItems: "center", background: "transparent", color: L.alpha(L.bg, 0.85), padding: "15px 26px", borderRadius: 999, border: `1px solid ${L.alpha(L.bg, 0.25)}`, fontSize: 15.5, fontWeight: 500, textDecoration: "none" }}>
+                I invest — show me deal flow
+              </Link>
+            )}
           </div>
         </div>
       </Reveal>

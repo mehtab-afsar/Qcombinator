@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
-import { HERO_COPY } from "../copy";
+import { HERO_COPY, LAUNCHING_SOON } from "../copy";
 import { Eyebrow } from "./Section";
 import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 
@@ -62,7 +62,7 @@ function ScrollCue() {
   );
 }
 
-export function Hero() {
+export function Hero({ signupOpen }: { signupOpen: boolean }) {
   const reduced = useMotionPrefs();
 
   return (
@@ -101,13 +101,27 @@ export function Hero() {
           }}>
             {HERO_COPY.ctaLabel} <ArrowRight size={16} aria-hidden="true" className="lp-cta-arrow" />
           </Link>
-          <Link href="/login" className="lp-cta" style={{
-            display: "inline-flex", alignItems: "center",
-            background: L.card, color: L.ink, padding: "13px 22px", borderRadius: 999,
-            border: `1px solid ${L.bdr}`, fontSize: 15, fontWeight: 500, textDecoration: "none",
-          }}>
-            I&apos;m an investor
-          </Link>
+          {/* /investor/onboarding, NOT /login. The generic sign-in's Google button carries no
+              intent, so a brand-new investor signing in there is silently created as a FOUNDER
+              (app/auth/callback keys on ?intent=investor, which only the investor onboarding
+              page sends). A link promising an investor path must lead to the investor path. */}
+          {signupOpen ? (
+            <Link href="/investor/onboarding" className="lp-cta" style={{
+              display: "inline-flex", alignItems: "center",
+              background: L.card, color: L.ink, padding: "13px 22px", borderRadius: 999,
+              border: `1px solid ${L.bdr}`, fontSize: 15, fontWeight: 500, textDecoration: "none",
+            }}>
+              I&apos;m an investor
+            </Link>
+          ) : (
+            <span style={{
+              display: "inline-flex", alignItems: "center",
+              background: L.card, color: L.muted, padding: "13px 22px", borderRadius: 999,
+              border: `1px solid ${L.bdr}`, fontSize: 15, fontWeight: 500,
+            }}>
+              {LAUNCHING_SOON}
+            </span>
+          )}
         </motion.div>
         <motion.p variants={rise} style={{ fontFamily: FONT_MONO, fontSize: 12, color: L.muted, margin: "0 0 44px" }}>{HERO_COPY.tagline}</motion.p>
 

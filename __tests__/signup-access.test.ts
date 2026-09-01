@@ -215,3 +215,27 @@ describe('every route that can create an account is gated', () => {
     }
   })
 })
+
+describe('an investor CTA leads to the investor path', () => {
+  // A brand-new Google user who signs in at /login is created as a FOUNDER: the callback keys on
+  // ?intent=investor, and only app/investor/onboarding sends it. So any link promising an
+  // investor experience must not land on the generic sign-in — the founder-shaped account is
+  // created silently, with nothing to tell the person it happened.
+  const investorCtas = [
+    'features/landing/components/Hero.tsx',
+    'features/landing/components/FinalCta.tsx',
+  ]
+
+  it.each(investorCtas)('%s sends investors to /investor/onboarding', file => {
+    const src = read(file)
+    expect(src).toContain('href="/investor/onboarding"')
+  })
+
+  it('only the investor onboarding page carries the intent the callback reads', () => {
+    expect(read('app/investor/onboarding/page.tsx')).toContain('intent=investor')
+    expect(read('app/auth/callback/route.ts')).toContain("intent === 'investor'")
+    // And it must still be decided BEFORE the founder redirect, or dual-role breaks.
+    const cb = read('app/auth/callback/route.ts')
+    expect(cb.indexOf("if (intent === 'investor')")).toBeLessThan(cb.indexOf('if (founderProfile) {'))
+  })
+})

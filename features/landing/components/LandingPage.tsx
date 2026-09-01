@@ -34,7 +34,7 @@ export function LandingPage({ signupOpen }: { signupOpen: boolean }) {
     <div style={{ background: L.bg, color: L.ink, minHeight: "100vh" }}>
       <Nav signupOpen={signupOpen} />
       <main>
-        <Hero />
+        <Hero signupOpen={signupOpen} />
         <Ladder />
         <Discover />
         <HowItWorks />
