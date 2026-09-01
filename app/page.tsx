@@ -45,7 +45,21 @@ const faqJsonLd = {
   })),
 };
 
-export default function Page() {
+/**
+ * Re-rendered at most once a minute rather than built once at deploy. The signup gate now lives
+ * in a database row that can be flipped at any moment (lib/auth/signup-access.ts), so a fully
+ * static page would keep offering a signup CTA after the product had been closed — or keep
+ * saying "Launching soon" after it opened — until the next deploy.
+ *
+ * A minute of staleness is only ever cosmetic. The lock itself is checked per request inside
+ * every account-creating route, so a stale button leads to an honest refusal, never to an
+ * account that shouldn't exist.
+ */
+export const revalidate = 60
+
+export default async function Page() {
+  const signupOpen = await isSignupOpen()
+
   return (
     <>
       <script
@@ -56,7 +70,7 @@ export default function Page() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <LandingPage signupOpen={isSignupOpen()} />
+      <LandingPage signupOpen={signupOpen} />
     </>
   );
 }

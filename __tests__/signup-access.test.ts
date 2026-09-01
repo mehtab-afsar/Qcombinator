@@ -1,95 +1,159 @@
 /**
  * The pre-launch signup gate — who may bring an account into existence while the product is
- * still in development.
+ * still in development, and how it is flipped without a deploy.
  *
- * Two properties carry the weight, and neither is about the happy path:
+ * Three properties carry the weight, and none of them is the happy path:
  *
- *  1. IT FAILS CLOSED. No configuration at all means signup is shut. The failure worth designing
- *     against is "we thought it was gated and it wasn't", not "we locked ourselves out" — the
- *     second is visible in seconds, the first is invisible until strangers are inside.
+ *  1. IT FAILS CLOSED, at every step. No row, an unreadable row, a thrown client, a blank email
+ *     — all mean "no". The failure worth designing against is "we thought it was gated and it
+ *     wasn't": invisible until strangers are inside, where locking ourselves out is obvious in
+ *     seconds.
  *
- *  2. THE ALLOWLIST IS SERVER-ONLY. It holds real people's email addresses. A NEXT_PUBLIC_ name
- *     would inline them into the JS bundle for anyone to read, so the test asserts on the
- *     variable NAME, not just the behaviour.
+ *  2. THE ALLOWLIST NEVER REACHES THE BROWSER. It is other people's email addresses.
+ *
+ *  3. EVERY ACCOUNT-CREATING ROUTE IS GATED — four of them. Gating only /api/auth/signup would
+ *     leave "Continue with Google" wide open, since the OAuth callback writes a profile itself.
  */
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
-import { isSignupOpen, signupAllowed } from '@/lib/auth/signup-access'
 
 const read = (p: string) => readFileSync(join(__dirname, '..', p), 'utf8')
 
-// No module reset needed: both functions read process.env inside their own body, so changing
-// the environment between tests is enough.
-const ORIGINAL = { ...process.env }
-afterEach(() => { process.env = { ...ORIGINAL } })
+// ─── The settings row, faked ────────────────────────────────────────────────
+// One chainable stub standing in for the service-role client, so each test states exactly what
+// the database returned — including the failure shapes, which are the interesting ones.
+
+type Row = { signup_open: boolean; signup_allowlist: string } | null
+let result: { data: Row; error: { message: string } | null } = { data: null, error: null }
+let throws = false
+
+jest.mock('@/lib/supabase/server', () => ({
+  createAdminClient: () => {
+    if (throws) throw new Error('no service role key')
+    return {
+      from: () => ({ select: () => ({ maybeSingle: async () => result }) }),
+    }
+  },
+}))
+
+import { isSignupOpen, signupAllowed } from '@/lib/auth/signup-access'
+
+const row = (over: Partial<NonNullable<Row>> = {}) => {
+  result = { data: { signup_open: false, signup_allowlist: '', ...over }, error: null }
+}
+
+beforeEach(() => {
+  throws = false
+  result = { data: null, error: null }
+})
 
 describe('it fails closed', () => {
-  it('⚠️ no configuration at all means NOBODY can sign up', () => {
-    delete process.env.SIGNUP_MODE
-    delete process.env.SIGNUP_ALLOWLIST
-        expect(isSignupOpen()).toBe(false)
-    expect(signupAllowed('stranger@example.com')).toBe(false)
+  it('⚠️ no settings row at all means NOBODY can sign up', () => {
+    // The state right after the migration, and after any accident that empties the table.
+    return Promise.all([
+      expect(isSignupOpen()).resolves.toBe(false),
+      expect(signupAllowed('stranger@example.com')).resolves.toBe(false),
+    ])
   })
 
-  it('a typo in the mode does not accidentally open it', () => {
-    for (const mode of ['OPEN ', 'true', '1', 'yes', 'opened', '']) {
-      process.env.SIGNUP_MODE = mode
-      // Only the exact word, case- and whitespace-insensitive, counts.
-      const expected = mode.trim().toLowerCase() === 'open'
-      expect(isSignupOpen()).toBe(expected)
-    }
+  it('⚠️ a database error means closed — never open', async () => {
+    result = { data: null, error: { message: 'connection refused' } }
+    await expect(isSignupOpen()).resolves.toBe(false)
+    await expect(signupAllowed('dana@acme.com')).resolves.toBe(false)
   })
 
-  it('an empty or malformed email is refused, never waved through', () => {
-    process.env.SIGNUP_ALLOWLIST = 'dana@acme.com'
-        expect(signupAllowed('')).toBe(false)
-    expect(signupAllowed('   ')).toBe(false)
-    expect(signupAllowed(null)).toBe(false)
-    expect(signupAllowed(undefined)).toBe(false)
+  it('⚠️ a thrown client means closed, not a 500 in the middle of signup', async () => {
+    throws = true
+    await expect(isSignupOpen()).resolves.toBe(false)
+    await expect(signupAllowed('dana@acme.com')).resolves.toBe(false)
+  })
+
+  it('an empty or malformed email is refused, never waved through', async () => {
+    row({ signup_allowlist: 'dana@acme.com' })
+    await expect(signupAllowed('')).resolves.toBe(false)
+    await expect(signupAllowed('   ')).resolves.toBe(false)
+    await expect(signupAllowed(null)).resolves.toBe(false)
+    await expect(signupAllowed(undefined)).resolves.toBe(false)
+  })
+
+  it('a non-boolean in the open column is not truthy-coerced into "open"', async () => {
+    // Reading a column as `=== true` rather than trusting it, because this one decides whether
+    // the product is public.
+    result = { data: { signup_open: 'yes' as unknown as boolean, signup_allowlist: '' }, error: null }
+    await expect(isSignupOpen()).resolves.toBe(false)
   })
 })
 
 describe('the allowlist', () => {
-  beforeEach(() => { delete process.env.SIGNUP_MODE })
-
-  it('lets an allowed address through and refuses everyone else', () => {
-    process.env.SIGNUP_ALLOWLIST = 'dana@acme.com, sam@globex.io'
-    
-    expect(signupAllowed('dana@acme.com')).toBe(true)
-    expect(signupAllowed('sam@globex.io')).toBe(true)
-    expect(signupAllowed('stranger@example.com')).toBe(false)
+  it('lets an allowed address through and refuses everyone else', async () => {
+    row({ signup_allowlist: 'dana@acme.com, sam@globex.io' })
+    await expect(signupAllowed('dana@acme.com')).resolves.toBe(true)
+    await expect(signupAllowed('sam@globex.io')).resolves.toBe(true)
+    await expect(signupAllowed('stranger@example.com')).resolves.toBe(false)
   })
 
-  it('ignores case and stray whitespace, which is how a pasted list actually arrives', () => {
-    process.env.SIGNUP_ALLOWLIST = '  Dana@Acme.com ,, sam@globex.io  '
-    
-    expect(signupAllowed('DANA@ACME.COM')).toBe(true)
-    expect(signupAllowed(' dana@acme.com ')).toBe(true)
-    expect(signupAllowed('sam@globex.io')).toBe(true)
+  it('ignores case and stray whitespace, which is how a pasted list actually arrives', async () => {
+    row({ signup_allowlist: '  Dana@Acme.com ,, sam@globex.io  ' })
+    await expect(signupAllowed('DANA@ACME.COM')).resolves.toBe(true)
+    await expect(signupAllowed(' dana@acme.com ')).resolves.toBe(true)
+    await expect(signupAllowed('sam@globex.io')).resolves.toBe(true)
   })
 
-  it('matches whole addresses only — no substring or domain slippage', () => {
-    process.env.SIGNUP_ALLOWLIST = 'dana@acme.com'
-    
-    expect(signupAllowed('evil-dana@acme.com')).toBe(false)
-    expect(signupAllowed('dana@acme.com.evil.net')).toBe(false)
-    expect(signupAllowed('acme.com')).toBe(false)
+  it('matches whole addresses only — no substring or domain slippage', async () => {
+    row({ signup_allowlist: 'dana@acme.com' })
+    await expect(signupAllowed('evil-dana@acme.com')).resolves.toBe(false)
+    await expect(signupAllowed('dana@acme.com.evil.net')).resolves.toBe(false)
+    await expect(signupAllowed('acme.com')).resolves.toBe(false)
   })
 
-  it('once launched, everyone is in and the list stops mattering', () => {
-    process.env.SIGNUP_MODE = 'open'
-    process.env.SIGNUP_ALLOWLIST = ''
-    expect(signupAllowed('anyone@example.com')).toBe(true)
+  it('once the toggle is on, everyone is in and the list stops mattering', async () => {
+    row({ signup_open: true, signup_allowlist: '' })
+    await expect(isSignupOpen()).resolves.toBe(true)
+    await expect(signupAllowed('anyone@example.com')).resolves.toBe(true)
+  })
+})
+
+describe('the toggle takes effect without a deploy', () => {
+  it('a flip between two calls changes the answer — nothing is cached', async () => {
+    // The whole reason this moved out of environment variables. A cached read would make the
+    // switch appear not to work, which is precisely the confusion it exists to prevent.
+    row({ signup_open: false })
+    await expect(isSignupOpen()).resolves.toBe(false)
+    row({ signup_open: true })
+    await expect(isSignupOpen()).resolves.toBe(true)
+  })
+
+  it('reads no environment variable — the row is the single source of truth', () => {
+    const src = read('lib/auth/signup-access.ts')
+    expect(src).not.toContain('process.env.SIGNUP_MODE')
+    expect(src).not.toContain('process.env.SIGNUP_ALLOWLIST')
+    expect(src).toContain("from('app_settings')")
+  })
+
+  it('the landing page re-renders on a timer, or a stale CTA would outlive the flip', () => {
+    const src = read('app/page.tsx')
+    expect(src).toMatch(/export const revalidate = \d+/)
+    expect(src).toContain('await isSignupOpen()')
   })
 })
 
 describe('the list never reaches the browser', () => {
-  it('⚠️ is not a NEXT_PUBLIC_ variable — those are inlined into the JS bundle', () => {
-    const src = read('lib/auth/signup-access.ts')
-    expect(src).toContain('process.env.SIGNUP_ALLOWLIST')
-    expect(src).not.toContain('NEXT_PUBLIC_SIGNUP_ALLOWLIST')
-    expect(src).not.toMatch(/NEXT_PUBLIC_[A-Z_]*ALLOW/)
+  it('⚠️ the settings table is service-role only — RLS on, no policies', () => {
+    const sql = read('supabase/migrations/20260827000002_app_settings.sql')
+    expect(sql).toContain('enable row level security')
+    // A policy here would be the bug: it would hand founders the allowlist, or the flag.
+    expect(sql).not.toMatch(/create policy/i)
+  })
+
+  it('exactly one row is possible, so there is never a second opinion', () => {
+    const sql = read('supabase/migrations/20260827000002_app_settings.sql')
+    expect(sql).toContain('boolean primary key default true check (id)')
+  })
+
+  it('the migration cannot itself open signup', () => {
+    const sql = read('supabase/migrations/20260827000002_app_settings.sql')
+    expect(sql).toContain('signup_open       boolean not null default false')
   })
 
   it('nothing in the client bundle reads the allowlist', () => {
@@ -100,14 +164,13 @@ describe('the list never reaches the browser', () => {
       'features/landing/components/Pricing.tsx',
       'features/landing/components/FinalCta.tsx',
     ]) {
-      expect(read(f)).not.toContain('SIGNUP_ALLOWLIST')
+      expect(read(f)).not.toContain('allowlist')
+      expect(read(f)).not.toContain('app_settings')
     }
   })
 })
 
 describe('every route that can create an account is gated', () => {
-  // The whole point: gating only /api/auth/signup would leave "Continue with Google" wide open,
-  // because the OAuth callback writes a founder_profiles stub without ever passing through it.
   const GATED = [
     'app/api/auth/signup/route.ts',
     'app/api/auth/investor-signup/route.ts',
@@ -115,9 +178,12 @@ describe('every route that can create an account is gated', () => {
     'app/api/investor/onboarding/route.ts',
   ]
 
-  it.each(GATED)('%s calls the shared gate', file => {
-    expect(read(file)).toContain("from '@/lib/auth/signup-access'")
-    expect(read(file)).toContain('signupAllowed(')
+  it.each(GATED)('%s calls the shared gate, and awaits it', file => {
+    const src = read(file)
+    expect(src).toContain("from '@/lib/auth/signup-access'")
+    // `if (!signupAllowed(...))` on a promise is always false — it would silently admit everyone.
+    expect(src).toContain('await signupAllowed(')
+    expect(src).not.toMatch(/!signupAllowed\(/)
   })
 
   it('the password routes refuse BEFORE creating the auth user', () => {
@@ -131,21 +197,20 @@ describe('every route that can create an account is gated', () => {
     // Google mints the session before this route runs; redirecting away without signing out
     // would leave them holding valid cookies for a profile-creating API.
     const src = read('app/auth/callback/route.ts')
-    const gate = src.slice(src.indexOf('!signupAllowed('))
+    const gate = src.slice(src.indexOf('await signupAllowed('))
     expect(gate.slice(0, 300)).toContain('signOut()')
   })
 
   it('the OAuth gate refuses only NEW people — an existing account still signs in', () => {
     // Including the dual-role founder who also invests, which the branch below it supports.
     const src = read('app/auth/callback/route.ts')
-    expect(src).toContain('!investorProfile && !founderProfile && !signupAllowed(user.email)')
+    expect(src).toContain('!investorProfile && !founderProfile && !(await signupAllowed(user.email))')
   })
 
   it('no route logs the email address itself', () => {
     // CLAUDE.md §3 — no PII in logs. The domain is enough to tell a stranger from a typo.
     for (const file of GATED) {
-      const src = read(file)
-      const refusals = src.split('\n').filter(l => l.includes('pre-launch gate') && l.includes('log.'))
+      const refusals = read(file).split('\n').filter(l => l.includes('pre-launch gate') && l.includes('log.'))
       for (const line of refusals) expect(line).not.toMatch(/\{\s*email\s*\}/)
     }
   })

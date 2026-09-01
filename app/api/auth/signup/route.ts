@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // Pre-launch gate (lib/auth/signup-access.ts) — checked BEFORE any account is created, and
     // failing closed. A teamToken is not an exemption: an invite joins the inviter's workspace,
     // which is still an account coming into existence.
-    if (!signupAllowed(email)) {
+    if (!(await signupAllowed(email))) {
       log.warn('signup refused — pre-launch gate', { domain: email.split('@')[1] ?? 'unknown' })
       return NextResponse.json({ error: SIGNUP_CLOSED_MESSAGE }, { status: 403 })
     }

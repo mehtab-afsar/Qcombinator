@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   //
   // Signing out matters: without it they keep the session Google just minted and could call a
   // profile-creating route directly, having been redirected away from the UI but not stopped.
-  if (!investorProfile && !founderProfile && !signupAllowed(user.email)) {
+  if (!investorProfile && !founderProfile && !(await signupAllowed(user.email))) {
     log.warn('[oauth-callback] signup refused — pre-launch gate', {
       domain: user.email?.split('@')[1] ?? 'unknown',
     })

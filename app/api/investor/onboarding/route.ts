@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     // out, but the session Google minted exists for the moment before that — so the route that
     // actually WRITES the profile is gated too rather than trusting the redirect to have stopped
     // them. An existing founder adding an investor side is not a new account and passes.
-    if (!signupAllowed(auth.user.email)) {
+    if (!(await signupAllowed(auth.user.email))) {
       const { data: founder } = await supabase
         .from('founder_profiles').select('id').eq('user_id', user.id).maybeSingle()
       if (!founder) {
