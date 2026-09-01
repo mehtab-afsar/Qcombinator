@@ -5,8 +5,11 @@ import { L } from "../theme";
 import { Nav } from "./Nav";
 import { Hero } from "./Hero";
 import { Ladder } from "./Ladder";
+import { Bridge } from "./Bridge";
+import { Problems } from "./Problems";
 import { Discover } from "./Discover";
 import { HowItWorks } from "./HowItWorks";
+import { QScoreLiteCallout } from "./QScoreLiteCallout";
 import { CommandPreview } from "./CommandPreview";
 import { SocialProof } from "./SocialProof";
 import { Pricing } from "./Pricing";
@@ -34,11 +37,27 @@ export function LandingPage({ signupOpen }: { signupOpen: boolean }) {
     <div style={{ background: L.bg, color: L.ink, minHeight: "100vh" }}>
       <Nav signupOpen={signupOpen} />
       <main>
+        {/* ── One argument, in order. ────────────────────────────────────────────────
+            The page used to run Hero → Ladder → Discover → HowItWorks, which cut from the
+            Founder Leverage story straight into the Q-Score story with nothing between them:
+            two measurement systems, three competing "start here" CTAs, and a reader left to
+            work out the connection themselves.
+
+            Now: a hook, then the scale it refers to, then what three minutes buys you — and
+            Bridge hands that over to the product. CommandPreview comes next because seeing five
+            executives do real work is the most convincing thing here and it was buried near the
+            footer. Problems states why fundability is hard immediately before HowItWorks answers
+            it, instead of interrupting the leverage argument as it used to. Q-Score Lite lands
+            after the six dimensions, where "what would MY company score?" is the natural next
+            question rather than a third front door competing with the hero. ── */}
         <Hero signupOpen={signupOpen} />
         <Ladder />
         <Discover />
-        <HowItWorks />
+        <Bridge />
         <CommandPreview />
+        <Problems />
+        <HowItWorks />
+        <QScoreLiteCallout />
         <SocialProof />
         <Pricing signupOpen={signupOpen} />
         <Faq />

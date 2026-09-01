@@ -2,12 +2,20 @@
 
 import { motion } from "framer-motion";
 import { L, FONT_SERIF, FONT_MONO } from "../theme";
-import { LADDER, PREMISE, PROBLEMS } from "../copy";
+import { LADDER, PREMISE } from "../copy";
 import { Reveal, Eyebrow } from "./Section";
-import { CountUp } from "./CountUp";
 import { useMotionPrefs } from "@/features/shared/hooks/useMotionPrefs";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
+
+/*
+ * This section is the LEVERAGE half of the page and stays purely that. Two things were removed
+ * because they belonged to the other half and broke the argument mid-sentence:
+ *   - each stop's "Q 0-29" band, which introduced the Q-Score vocabulary pages before the reader
+ *     is told what a Q-Score is, and asserted that AI leverage equals fundability;
+ *   - the three fundraising statistics, now Problems.tsx, placed beside the Q-Score where they
+ *     are the reason it exists rather than an interruption.
+ */
 
 /** Fill bar + 5 stop dots, lighting up left-to-right once scrolled into view. Reduced motion
  *  renders the fully-lit end state immediately, same convention as Reveal/StaticHowItWorks. */
@@ -53,7 +61,6 @@ function LadderTrack() {
               />
               <span style={{ display: "block", fontFamily: FONT_MONO, fontSize: 13, fontWeight: 600, color: L.green, marginBottom: 4 }}>{stop.multiple}</span>
               <span style={{ display: "block", fontSize: "clamp(12.5px, 1.4vw, 14.5px)", fontWeight: 600, color: L.ink, lineHeight: 1.3, maxWidth: 128, marginLeft: isLast ? "auto" : 0 }}>{stop.archetype}</span>
-              <span style={{ display: "block", fontFamily: FONT_MONO, fontSize: 10.5, color: L.muted, marginTop: 4 }}>Q {stop.scoreMin}–{stop.scoreMax}</span>
               <span style={{ display: "block", fontSize: 11.5, color: L.muted, lineHeight: 1.4, marginTop: 8, maxWidth: 148, marginLeft: isLast ? "auto" : 0 }}>{stop.note}</span>
             </motion.div>
           );
@@ -82,24 +89,6 @@ export function Ladder() {
             <span style={{ display: "block", fontFamily: FONT_SERIF, fontSize: 40, fontWeight: 700, color: L.ink, marginBottom: 6 }}>{PREMISE.statValue}</span>
             <span style={{ fontFamily: FONT_MONO, fontSize: 13, color: L.muted, lineHeight: 1.7 }}>{PREMISE.statLabel}</span>
           </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={0.15}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 24, marginTop: 56, paddingTop: 40, borderTop: `1px solid ${L.bdr}` }}>
-          {PROBLEMS.map((p) => {
-            const m = p.stat.match(/^(\d+)(.*)$/);
-            const to = m ? Number(m[1]) : 0;
-            const suffix = m ? m[2] : p.stat;
-            return (
-              <div key={p.stat} style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-                <span style={{ fontFamily: FONT_MONO, fontSize: 24, fontWeight: 700, color: L.red, minWidth: 66, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                  <CountUp to={to} suffix={suffix} />
-                </span>
-                <p style={{ fontSize: 13, color: L.muted, margin: 0, lineHeight: 1.55 }}>{p.label}</p>
-              </div>
-            );
-          })}
         </div>
       </Reveal>
 

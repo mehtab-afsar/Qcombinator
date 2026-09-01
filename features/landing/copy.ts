@@ -21,6 +21,19 @@ export const LAUNCHING_SOON = "Launching soon";
 // product. Here it names a real feature/archetype ("Founder Leverage Check", "AI Leveraged",
 // "Leverage Leak") — an explicit, approved exception, not filler. Don't let its presence here
 // license reintroducing "leverage" as filler copy anywhere else.
+/**
+ * The hinge of the page. Everything above it is the Founder Leverage Check — a number about how
+ * you work. Everything below it is Edge Alpha — the thing that moves that number. Without this
+ * the page simply cuts from one story to the other mid-scroll, which is what made it read as two
+ * pitches wearing one page rather than one argument.
+ */
+export const BRIDGE = {
+  eyebrow: "From number to movement",
+  heading: "Knowing your number is the easy part.",
+  body: "Three minutes tells you where you sit on the scale and which part of running the company is still going through you. It doesn't move you. Closing that gap means someone actually owning the work — the positioning, the pricing, the hiring plan, the runway model — week after week, whether or not you have time for it.",
+  closer: "That is what the rest of this page is.",
+} as const;
+
 export const LADDER = [
   { multiple: "1×",  archetype: "Founder Operated", scoreMin: 0,  scoreMax: 29,  note: "Every decision, every hire, every quarter runs through you." },
   { multiple: "3×",  archetype: "AI Assisted",      scoreMin: 30, scoreMax: 49,  note: "AI writes faster, researches faster — you're still the bottleneck." },
@@ -81,6 +94,17 @@ export const PARAMETERS = [
   { id: "p5", name: "Structural Impact",  color: "#DB2777", desc: "Why now — the structural shift that makes this inevitable." },
   { id: "p6", name: "Financials",         color: "#0891B2", desc: "Unit economics, runway, and capital efficiency." },
 ] as const;
+
+// ─── Q-Score Lite callout — sits right after HowItWorks, the natural next question once a
+// visitor has just read the six dimensions: "okay, so what would MY company score?" Answers it
+// immediately, from public evidence, no signup — features/qscore-lite/**, a fully independent
+// tool from the real Q-Score above it (see that feature's own docs for why).
+export const QSCORE_LITE_CALLOUT = {
+  eyebrow: "Try it on your own company",
+  heading: "What would your company score — before you even sign up?",
+  body: "Q-Score Lite scans public evidence only — no self-report, no signup wall — and gives you a fundability reading with a confidence level, in about a minute.",
+  cta: "Get my Q-Score Lite",
+} as const;
 
 // ─── The Executive team — the real roster, not invented personas ────────────────────────────
 // Hand-copied, not imported: pulling the live Registry (lib/registry/executives/**) into the
