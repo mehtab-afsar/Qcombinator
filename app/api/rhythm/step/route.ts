@@ -24,6 +24,13 @@
 export const runtime = 'nodejs'
 // Comfortably above judge.ts's 180s worst-case single asset call and generate.ts's 120s
 // briefing call — one step never does more than one of those.
+//
+// ⚠️ THIS IS A REQUEST, NOT A GUARANTEE. The hosting plan caps it: Vercel Hobby allows 60s, so
+// this 200 is silently clamped there. A single asset generation measured ~77-90s, which means on
+// Hobby the function is killed MID-GENERATION — the step never records, the self-chain has
+// nothing to continue from, and the run sits at 'running' until it ages into 'stalled' ten
+// minutes later. That is the mechanism behind "the cycle stops and never resumes"; it is a plan
+// limit, not a bug in this route. Pro (300s) is what makes this number real.
 export const maxDuration = 200
 
 import { NextRequest, NextResponse } from 'next/server'
