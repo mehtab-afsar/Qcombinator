@@ -218,7 +218,21 @@ What should the founder work on today?`,
       data: contextBlock,
     })
 
-    const raw = await routedText('generation', messages, { modelTier: 'fast', maxTokens: 600, temperature: 0.4 })
+    // ⚠️ An LLM failure here is ORDINARY, not exceptional — an expired key, an unpaid bill, a
+    // rate limit, a provider outage. Letting it reach the catch-all at the bottom turns any of
+    // those into a 500 and an empty dashboard, which is exactly what a founder hit: a billing
+    // problem that looked like a broken product. The dimension-based fallback below already
+    // knows how to produce sensible priorities without the model, so degrade into it.
+    let raw = ''
+    let llmFailed = false
+    try {
+      raw = await routedText('generation', messages, { modelTier: 'fast', maxTokens: 600, temperature: 0.4 })
+    } catch (err) {
+      llmFailed = true
+      log.warn('qscore/priority — LLM unavailable, using dimension-based priorities', {
+        err: (err as Error)?.message,
+      })
+    }
 
     // Parse LLM response
     const cleanRaw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
@@ -246,8 +260,10 @@ What should the founder work on today?`,
 
     const generatedAt = new Date().toISOString()
 
-    // Cache in ai_actions on the specific latest qscore_history row (by id)
-    if (latestScore && (latestScore as Record<string, unknown>).id) {
+    // Cache in ai_actions on the specific latest qscore_history row (by id).
+    // Never cache a degraded result — the cache lasts six hours, so a fallback written during a
+    // ten-minute outage would keep being served long after the cause was fixed.
+    if (!llmFailed && latestScore && (latestScore as Record<string, unknown>).id) {
       const existingActions = (latestScore.ai_actions as Record<string, unknown>) ?? {}
       supabase
         .from('qscore_history')
@@ -256,7 +272,9 @@ What should the founder work on today?`,
         .then(() => {}) // fire-and-forget
     }
 
-    return NextResponse.json({ priorities, cached: false, generatedAt })
+    // `degraded` lets the dashboard tell the founder these came from their scores rather than
+    // from the model, instead of quietly passing off a fallback as an AI answer.
+    return NextResponse.json({ priorities, cached: false, generatedAt, degraded: llmFailed })
   } catch (err) {
     log.error('GET /api/qscore/priority', { err })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
