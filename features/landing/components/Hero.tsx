@@ -113,7 +113,7 @@ export function Hero() {
 
         <motion.div variants={rise} className="hero-line" style={{ display: "flex", gap: 40, paddingTop: 28, borderTop: `1px solid ${L.bdr}` }}>
           <p style={{ fontSize: "clamp(15px, 1.7vw, 17px)", color: L.ink, lineHeight: 1.5, flex: 1, minWidth: 260 }}>
-            <span style={{ fontFamily: FONT_MONO, color: L.blue, fontWeight: 500 }}>Most founders </span>
+            <span style={{ fontFamily: FONT_MONO, color: L.blue, fontWeight: 500 }}>{HERO_COPY.flaggedLead} </span>
             {HERO_COPY.flaggedLine}
           </p>
           <p style={{ fontSize: "clamp(15px, 1.7vw, 17px)", color: L.ink, fontWeight: 600, lineHeight: 1.5, flex: 1, minWidth: 260 }}>

@@ -39,7 +39,12 @@ export const HERO_COPY = {
   headlineGradient: "10×",
   headlinePost: " founder?",
   sub: "You already know you should be using more AI. You probably open ChatGPT before you open your inbox. But knowing where AI gives you the most leverage is a different question — and most founders can't answer it.",
-  flaggedLine: "Most founders use AI to write faster, research faster, get more done — and still stay the bottleneck for every decision, every hire, every quarter.",
+  /** Two halves of ONE sentence. `flaggedLead` renders in mono blue, `flaggedLine` completes it.
+   *  Split here rather than hardcoding the lead-in inside Hero.tsx — which is what produced
+   *  "Most founders Most founders use AI to write faster…" on the live page. A component that
+   *  hardcodes copy has no way of knowing the copy file already says it. */
+  flaggedLead: "Most founders",
+  flaggedLine: "use AI to write faster, research faster, get more done — and still stay the bottleneck for every decision, every hire, every quarter.",
   closerLine: "The next step isn't using more AI. It's becoming a 10× Founder.",
   scrollCue: "Find your number ↓",
   ctaLabel: "Discover my Founder Leverage",
