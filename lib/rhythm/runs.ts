@@ -19,8 +19,20 @@ export type RunStatus = 'running' | 'completed' | 'failed'
  * No step in `last_step_at` for this long → the chain is presumed broken, not just slow.
  * Single-sourced: the resume decision here and the founder-facing 'stalled' badge
  * (lib/rhythm/progress.ts) must agree on what counts as stalled.
+ *
+ * Was 10 minutes. A founder whose chain died watched a frozen "working…" for that entire time
+ * with no Resume button — the control only appears once a run reads as stalled — and reasonably
+ * concluded the product had died with no way back. Halved, because ten minutes of a screen that
+ * looks broken is itself the failure.
+ *
+ * ⚠️ THE FLOOR IS THE LONGEST LEGITIMATE STEP, and this must stay above it. A step may run to
+ * maxDuration (200s, app/api/rhythm/step/route.ts); 5 minutes leaves 100s of headroom, so a slow
+ * but living step is never mistaken for a dead one. Do not lower this further without lowering
+ * maxDuration first — resuming a step that is still running is how you get duplicate model spend.
+ * (The asset_versions unique constraint would catch the duplicate write, but only after paying
+ * for it.)
  */
-export const STALE_AFTER_MS = 10 * 60 * 1000
+export const STALE_AFTER_MS = 5 * 60 * 1000
 
 export interface RhythmRun {
   id: string
