@@ -1,5 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&display=swap');
-
+/* The Google Fonts @import that used to sit here loaded Inter and Manrope a SECOND time —
+   next/font already self-hosts Inter, and Manrope was never used. A CSS @import is also
+   render-blocking and adds a third-party DNS + TLS round trip before the first paint. */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -78,7 +79,7 @@
   body {
     background: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
     font-weight: 400; /* Default to normal weight */
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
