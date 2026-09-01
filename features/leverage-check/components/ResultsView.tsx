@@ -3,7 +3,7 @@
 import { bg, surf, bdr, ink, muted, blue, green } from "@/lib/constants/colors";
 import { font } from "@/features/shared/tokens";
 import { DIMENSION_ORDER, DIMENSION_LABELS } from "../scoring/questions";
-import { EmailCaptureCta } from "./EmailCaptureCta";
+import { EmailCaptureCta } from "@/features/shared/components/EmailCaptureCta";
 import type { LeverageCheckApiResult } from "./LeverageCheckPage";
 
 /**
@@ -107,7 +107,13 @@ export function ResultsView({ result }: { result: LeverageCheckApiResult }) {
         <ReportText text={result.fullReport} />
       </div>
 
-      <EmailCaptureCta submissionId={result.id} />
+      <EmailCaptureCta
+        submissionId={result.id}
+        linkEndpoint="/api/leverage-check/link-email"
+        redirectIdParam="leverageCheckId"
+        eyebrow="Founder in Command. Agents in Execution."
+        heading="Build my 10× Operating Model"
+      />
     </div>
   );
 }

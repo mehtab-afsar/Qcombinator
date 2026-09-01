@@ -107,6 +107,9 @@ function FounderOnboardingForm() {
   // row (leverage_check_submissions.linked_founder_id). email prefills Step 1's email field so
   // the founder doesn't retype what they already gave the quiz's final CTA.
   const leverageCheckId = searchParams.get('leverageCheckId')
+  // Same shape as leverageCheckId, for a signup that came from Q-Score Lite
+  // (features/qscore-lite/**) instead.
+  const qScoreLiteId = searchParams.get('qScoreLiteId')
   const emailParam = searchParams.get('email')
   const reducedMotion = useMotionPrefs()
   const [page, setPage] = useState(1)
@@ -176,6 +179,7 @@ function FounderOnboardingForm() {
             marketSizeEstimate: form.marketSizeEstimate, gtmStrategy: form.gtmStrategy, founderBackground: form.founderBackground,
             ...(teamToken ? { teamToken } : {}),
             ...(leverageCheckId ? { leverageCheckId } : {}),
+            ...(qScoreLiteId ? { qScoreLiteId } : {}),
           }
       const res = await fetch(endpoint, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -22,6 +22,13 @@ const RATE_LIMIT_RULES: Record<string, { requests: number; window: string }> = {
 
   '/api/leverage-check/submit':     { requests: 8,  window: '1 m' }, // public, anonymous, LLM-cost-driven
   '/api/leverage-check/link-email': { requests: 10, window: '1 m' }, // public, anonymous, DB write only
+
+  // An uncached lookup is ~11 Tavily calls + one LLM extraction call, roughly 8-10x
+  // leverage-check/submit's cost — scaled down proportionally from its 8/min. Not tighter than
+  // 3/min because the domain-keyed 30-day cache already makes repeat-same-domain abuse free; this
+  // limit's real job is bounding distinct-domain scripted abuse.
+  '/api/qscore-lite/submit':        { requests: 3,  window: '1 m' },
+  '/api/qscore-lite/link-email':    { requests: 10, window: '1 m' }, // public, anonymous, DB write only
 }
 
 let _redis: Redis | null = null
@@ -74,7 +81,7 @@ function matchRateLimit(pathname: string): { rule: { requests: number; window: s
  *  - /login, /signup, /
  *  - /founder/onboarding (new users signing up)
  *  - /founder/join, /investor/join (invite links — must work for a logged-out invitee)
- *  - /leverage-check (public anonymous quiz — no session check needed)
+ *  - /leverage-check, /qscore-lite (public anonymous tools — no session check needed)
  *  - /investor/onboarding
  *  - /api/*  (API routes handle their own auth)
  *  - /s/*    (public PMF survey pages)
@@ -97,6 +104,7 @@ const PUBLIC_PATHS = [
   '/founder/profile-builder',
   '/investor/onboarding',
   '/leverage-check',
+  '/qscore-lite',
 ]
 
 // Requires auth, but exempt from the email-confirmation gate below — an unconfirmed founder or

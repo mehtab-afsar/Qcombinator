@@ -12,6 +12,8 @@ export interface TavilyResult {
   url: string;
   content: string;
   score?: number;
+  /** From Tavily's `published_date`, when the API returns one — not every result has one. */
+  publishedDate?: string;
 }
 
 export interface TavilyResponse {
@@ -60,9 +62,16 @@ export async function tavilySearch(
       }
 
       const data = await response.json();
+      const results: TavilyResult[] = (data.results ?? []).map((r: TavilyResult & { published_date?: string }) => ({
+        title: r.title,
+        url: r.url,
+        content: r.content,
+        score: r.score,
+        publishedDate: r.published_date ?? undefined,
+      }));
       return {
         answer: data.answer ?? null,
-        results: (data.results ?? []) as TavilyResult[],
+        results,
       };
     },
     null

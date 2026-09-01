@@ -7,7 +7,8 @@
  * Thresholds:
  *   - >3 failures in 60 seconds → circuit opens for 5 minutes
  *
- * Protected services: Hunter.io, Tavily, Netlify, Resend, Voyage embeddings, TechCrunch RSS
+ * Protected services: Hunter.io, Tavily, Netlify, Resend, Voyage embeddings, TechCrunch RSS,
+ *   GitHub public API
  */
 
 import { log } from '@/lib/logger'
@@ -24,7 +25,8 @@ export type ServiceId =
   | 'vapi'
   | 'anthropic'
   | 'groq'
-  | 'techcrunch_rss';
+  | 'techcrunch_rss'
+  | 'github_api';
 
 interface CircuitState {
   failures: number;

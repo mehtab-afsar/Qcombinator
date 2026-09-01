@@ -54,6 +54,7 @@ export const signupSchema = z.object({
   founderBackground: z.array(z.string()).optional(),   // Array of background tags
   teamToken:        z.string().max(128).optional(),    // team invite token — auto-joins workspace on signup
   leverageCheckId:  z.string().uuid().optional(),       // links a converted signup back to its leverage-check submission
+  qScoreLiteId:     z.string().uuid().optional(),        // links a converted signup back to its Q-Score Lite lookup
 })
 
 export type SignupInput = z.infer<typeof signupSchema>
