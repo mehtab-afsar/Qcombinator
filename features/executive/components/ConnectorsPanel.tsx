@@ -90,6 +90,10 @@ export function ConnectorsPanel() {
       window.location.href = data.url // hand off to Google
     } catch {
       setError('Could not reach the server.')
+    } finally {
+      // Previously only reset on the catch branch — an error response (e.g. Stripe's
+      // "not configured") left the button spinning forever even though the request had
+      // already finished and an error message was set.
       setBusy(null)
     }
   }
