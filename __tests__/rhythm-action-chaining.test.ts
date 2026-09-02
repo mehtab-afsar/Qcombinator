@@ -1,5 +1,6 @@
 /**
- * AI SDR Milestone 1 — real action-to-action chaining. `dependencyContextFor` (lib/rhythm/run.ts)
+ * AI SDR Milestone 1 — real action-to-action chaining. `dependencyContextFor`
+ * (lib/rhythm/action-context.ts, re-exported from run.ts)
  * is the whole mechanism: look up a dependency's own result within this execution and thread it
  * into the next Action's CompanyContext, or no-op for the vast majority of Actions that don't
  * declare `ActionDef.dependsOn` at all.
@@ -96,7 +97,10 @@ describe('leadsContextFor — the gate', () => {
     // The property that keeps this from rotting: the predicate asks the Registry whether this
     // Action's Program declares a lead producer. Delete `produces` from P005 and every P005
     // Action loses pipeline access automatically — no list to remember to update.
-    const src = readFileSync(join(__dirname, '..', 'lib/rhythm/run.ts'), 'utf8')
+    // The injectors moved out of run.ts into action-context.ts when run.ts passed the file-size
+    // ceiling; run.ts re-exports them, so nothing importing them had to change. Behaviour is
+    // identical — only the file this assertion reads moved with them.
+    const src = readFileSync(join(__dirname, '..', 'lib/rhythm/action-context.ts'), 'utf8')
     const fn = src.slice(src.indexOf('export async function leadsContextFor'))
     expect(fn).toContain("produces === 'lead'")
     expect(fn).not.toContain("'P005'")

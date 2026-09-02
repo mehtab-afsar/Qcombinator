@@ -59,7 +59,14 @@ export interface CompanyContext {
   /** S002 — the mandate. */
   contract?: string
   /** The separate diagnostic (ADR-005). Read-only here; composing never moves it. */
-  qScore?: { overall: number; summary?: string }
+  qScore?: {
+    overall: number
+    summary?: string
+    /** A short, oldest-first trend — populated by the weekly rhythm (lib/rhythm/context.ts),
+     *  absent everywhere else (e.g. the mandate flow's own qScore). AS021 (Q-Score Trend
+     *  Report) is the one Asset that currently reads it. */
+    history?: Array<{ overall: number; calculatedAt: string }>
+  }
   /**
    * Current Asset versions — the company's memory. From F11 once it exists.
    * Keyed by AssetId so the Composer can exclude irrelevant Assets (PRD §7.2).
@@ -145,6 +152,26 @@ export interface CompanyContext {
    * Connector (ADR-026).
    */
   pulledData?: string
+  /**
+   * People who replied to outreach this founder's team actually sent — read back from
+   * `outreach_reply_signals` (`lib/signals/context.ts`'s `getOutreachRepliesContext`).
+   *
+   * Populated NARROWLY, by `lib/rhythm/action-context.ts`'s `outreachRepliesContextFor`, and only
+   * for Actions of a Program that sends outreach at all — never for an Asset or a Briefing. Same
+   * carve-out, same reason, as `founderContacts`/`pipelineLeads`/`pulledData` above: a persisted
+   * document must not become a second, silent copy of someone's words with no link back to the
+   * row that says when to delete them.
+   *
+   * ⚠️ NO ADDRESSES, ever. The underlying rows hold a sender's DOMAIN and a short excerpt, never
+   * an address and never a full body — a follow-up does not need to know who replied in order to
+   * be specific, it needs to know that someone did, from where, and roughly what they said.
+   *
+   * ⚠️ A CACHE READ, never a live call. The signals were written from a founder-initiated
+   * request; composing this package must never itself talk to a Connector (ADR-026), and
+   * `__tests__/outreach-replies-adr-guard.test.ts` asserts `lib/signals/context.ts` contains no
+   * fetch.
+   */
+  outreachReplies?: string
 }
 
 export interface ComposeInput {

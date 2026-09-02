@@ -64,11 +64,23 @@ describe('ADR-026 — no Rhythm step makes a live external call', () => {
     }
     walk('lib/rhythm')
 
+    // Asserts on IMPORT STATEMENTS, not raw text: these files legitimately name the sweep in
+    // prose to explain why they must not import it, and a substring scan would fail on the very
+    // comment documenting the rule. What matters is the module graph, so that is what is checked.
+    const importLines = (src: string) =>
+      src.split('\n').filter(l => /^\s*(import|export)\b.*\bfrom\s+['"]/.test(l))
+
     for (const f of files) {
-      const src = read(f)
-      expect(src).not.toContain('signals/outreach-replies')
-      expect(src).not.toContain('gmail/replies')
+      for (const line of importLines(read(f))) {
+        expect(line).not.toContain('signals/outreach-replies')
+        expect(line).not.toContain('gmail/replies')
+      }
     }
+  })
+
+  it('the one signals import a Rhythm file may have is the passive context reader', () => {
+    const src = read('lib/rhythm/action-context.ts')
+    expect(src).toContain("from '@/lib/signals/context'")
   })
 
   it('the sweep says plainly who may call it', () => {

@@ -53,8 +53,11 @@ export function renderCompanyContext(
     // this folder for the writer's name, so do not name it here — not even in
     // prose. The guard is a blunt string scan on purpose: a net that parses code
     // is a net that can be argued with.
-    const { overall, summary } = context.qScore
-    field('Q-Score (diagnostic — read only)', `Overall: ${overall}${summary ? `\n${summary}` : ''}`)
+    const { overall, summary, history } = context.qScore
+    const historyLine = history && history.length > 0
+      ? `\nHistory (oldest to most recent): ${history.map(h => `${h.overall} (${h.calculatedAt.slice(0, 10)})`).join(' → ')}`
+      : ''
+    field('Q-Score (diagnostic — read only)', `Overall: ${overall}${summary ? `\n${summary}` : ''}${historyLine}`)
   }
 
   field('Comparable Companies', context.comparableCohort)
@@ -97,7 +100,10 @@ export function renderCompanyContext(
   // Narrowly populated too (pulledDataContextFor) — one row per (founder, action), never present
   // for an Asset or a Briefing. The label says "You Pulled In" deliberately: this is real
   // Connector data the founder explicitly asked for once, not something fetched on its own.
-  field('Real Data You Pulled In', context.pulledData)
+  field('Real Data You Pulled In', context.pulledData),
+  // Narrow too (outreachRepliesContextFor), and only for a Program that sends outreach at all.
+  // A domain and an excerpt — never an address, never a full body.
+  field('Replies To Outreach You Sent', context.outreachReplies)
 
   field('New Information This Cycle', context.newInformation)
 

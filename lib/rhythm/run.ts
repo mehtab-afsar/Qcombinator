@@ -25,10 +25,7 @@ import { RhythmError } from './errors'
 // Re-exported: `@/lib/rhythm/run` is the established public path for this type.
 export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
-import { AlreadyExecutedError, latestPerAction } from '@/lib/actions/log'
-import { getFounderContactsContext } from '@/lib/contacts/context'
-import { getLeadsContext } from '@/lib/entities/leads'
-import { getPulledDataContext } from '@/lib/actions/pulled-data'
+import { AlreadyExecutedError } from '@/lib/actions/log'
 import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { createNotification } from '@/lib/notifications/create'
@@ -36,6 +33,22 @@ import { notifyActionPending } from '@/lib/actions/notify-pending'
 import type { PayloadMetadata } from '@/lib/actions/payload'
 import { generateAssetContent } from './judge'
 import { weekCycleKey } from './cycle-key'
+// Re-exported, not moved away: `@/lib/rhythm/run` is the established import path for these and
+// several test suites depend on it. The definitions live in ./action-context.
+export {
+  dependencyContextFor,
+  founderContactsContextFor,
+  leadsContextFor,
+  pulledDataContextFor,
+  outreachRepliesContextFor,
+} from './action-context'
+import {
+  dependencyContextFor,
+  founderContactsContextFor,
+  leadsContextFor,
+  pulledDataContextFor,
+  outreachRepliesContextFor,
+} from './action-context'
 
 export interface RunCycleArgs {
   founderId: string
@@ -96,109 +109,6 @@ function newStage(): StageStatus {
  */
 function actionsPhase(stage: StageStatus): { status: string; done: string[] } {
   return { status: stage.actions ?? 'pending', done: stage.actionsDone ?? [] }
-}
-
-/**
- * AI SDR Milestone 1 — real chaining. When `actionId` declares `ActionDef.dependsOn`, look up
- * that Action's own result within THIS execution and return it as a `CompanyContext` addition;
- * otherwise return an empty object, so a spread at the call site is a no-op for every Action
- * that doesn't chain (i.e. everything except the handful of AI SDR steps that opt in).
- *
- * Only ever reads a result that's actually there. A dependency still `pending_approval` (an
- * irreversible Action, not yet approved) has no `result` yet — silently omitted rather than
- * blocking or erroring, since Milestone 1 is scoped to fully-autonomous chains; Milestone 2
- * covers the approval-pause case.
- *
- * Exported so this reads-from-`result` rule is unit-tested directly, matching resultSummary
- * (app/api/actions/route.ts) rather than only reachable through the full runNextStep path.
- */
-export async function dependencyContextFor(
-  admin: SupabaseClient,
-  founderId: string,
-  executionId: string,
-  actionId: string,
-): Promise<Pick<CompanyContext, 'dependencyResult'>> {
-  const dependsOn = getAction(actionId).dependsOn
-  if (!dependsOn) return {}
-
-  const entries = await latestPerAction(admin, founderId, executionId)
-  const entry = entries.find(e => e.actionId === dependsOn)
-  const text = entry?.result?.summary
-  if (typeof text !== 'string' || !text.trim()) return {}
-
-  return { dependencyResult: { actionId: dependsOn, label: getAction(dependsOn).name, text } }
-}
-
-/**
- * A founder's own real contact list, but ONLY for the Actions that actually send email —
- * `getAction(actionId).connector === 'gmail'` (today: `interview_customers`, P001, and
- * `generate_personalized_outreach`, P005; nothing else). Empty object for every Asset, every
- * Briefing, and every other Action — deliberately NOT part of `baseContext`, which is reused
- * unchanged across all of those. Real PII belongs only where it's actually needed; a founder's
- * contact reaching a persisted Asset document (with no link back to the source row to know it
- * needs cleanup if the contact is later deleted) would be a second, silent copy of their data.
- *
- * Slack (`post_team_update`) is intentionally excluded even though it's also `irreversible` +
- * `connector` — a team update has no reason to reference the founder's prospect list at all.
- */
-export async function founderContactsContextFor(
-  admin: SupabaseClient,
-  founderId: string,
-  actionId: string,
-): Promise<Pick<CompanyContext, 'founderContacts'>> {
-  if (getAction(actionId).connector !== 'gmail') return {}
-
-  const text = await getFounderContactsContext(admin, founderId).catch(() => null)
-  return text ? { founderContacts: text } : {}
-}
-
-/**
- * The founder's live lead pipeline, for the Actions of a Program that actually produces leads.
- *
- * ⚠️ THE GATE IS REGISTRY-DERIVED AND SELF-MAINTAINING: "if this Program declares a lead-producing
- * Action, its Actions may read leads." No hardcoded id list to fall out of date — a future Program
- * that declares `produces: 'lead'` inherits this automatically, and one that stops producing leads
- * loses it automatically.
- *
- * Same narrow shape and same carve-out as `founderContactsContextFor` above — Actions only, never
- * an Asset or a Briefing, because those persist as documents and would become a second silent copy
- * of personal data with no link back to the row. `getLeadsContext` additionally renders no email
- * addresses at all (see its own docstring).
- *
- * This is what lets a chained Action reason from the live table rather than the previous step's
- * already-stale prose summary — `dependencyContextFor` above remains, for genuinely narrative
- * handoffs.
- */
-export async function leadsContextFor(
-  admin: SupabaseClient,
-  founderId: string,
-  actionId: string,
-): Promise<Pick<CompanyContext, 'pipelineLeads'>> {
-  const program = getProgram(getAction(actionId).program)
-  if (!program.actions.some(id => getAction(id).produces === 'lead')) return {}
-
-  const text = await getLeadsContext(admin, founderId).catch(() => null)
-  return text ? { pipelineLeads: text } : {}
-}
-
-/**
- * A founder-triggered pull of real Connector data (Gmail-read, PostHog) — see the
- * `founder_pulled_data` migration's own comment for why this is a cache read here rather than a
- * live Connector call. No allowlist needed: the cache is already scoped to one row per
- * (founder, action), so an Action nobody has ever pulled data for just gets `{}`, same as every
- * narrow injector above when its gate doesn't apply.
- *
- * ⚠️ This is the ONLY thing standing between "founder clicked pull" and "the model saw it" — it
- * must stay a passive DB read. Calling a Connector from inside this function would put a live
- * external call inside a Rhythm cycle step, which ADR-026 forbids.
- */
-export async function pulledDataContextFor(
-  admin: SupabaseClient,
-  founderId: string,
-  actionId: string,
-): Promise<Pick<CompanyContext, 'pulledData'>> {
-  const text = await getPulledDataContext(admin, founderId, actionId).catch(() => null)
-  return text ? { pulledData: text } : {}
 }
 
 /**
@@ -359,13 +269,16 @@ export async function runNextStep(
           // A no-op spread unless the founder has explicitly pulled real data in for this
           // specific Action (see pulledDataContextFor's own docstring).
           const pulled = await pulledDataContextFor(admin, run.founderId, nextActionId)
+          // Replies to outreach this team sent — a PASSIVE read of the signals cache, never a
+          // live Gmail call from inside a step (ADR-026).
+          const replies = await outreachRepliesContextFor(admin, run.founderId, nextActionId)
           const entry = await generateAction(admin, {
             founderId: run.founderId,
             program,
             actionId: nextActionId,
             executionId: run.id,
             activePrograms: contract.activePrograms,
-            context: { ...baseContext, ...chained, ...contacts, ...leads, ...pulled },
+            context: { ...baseContext, ...chained, ...contacts, ...leads, ...pulled, ...replies },
           })
           // The one safety-checkpoint notification in the product — before this, an Action
           // could sit pending_approval indefinitely with nothing telling the founder it existed.
