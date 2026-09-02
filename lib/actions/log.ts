@@ -123,6 +123,8 @@ export interface RecordAttemptArgs {
   status: ActionStatus
   programId?: string | null
   executionId?: string | null
+  /** See GenerateActionArgs.dedupeKey — idempotency for a run that has no execution_id. */
+  dedupeKey?: string | null
   provider?: string | null
   /** Hashed and reduced to metadata here — the caller never decides what is safe to store. */
   payload?: ActionPayload
@@ -160,6 +162,7 @@ export async function recordAttempt(
       founder_id: args.founderId,
       program_id: args.programId ?? null,
       execution_id: args.executionId ?? null,
+      dedupe_key: args.dedupeKey ?? null,
       action_id: args.actionId,
       provider: args.provider ?? null,
       irreversible: args.irreversible,
@@ -199,6 +202,37 @@ function dedupeLatestByActionId(rows: readonly ActionLogRow[]): ActionLogEntry[]
     seen.add(e.actionId)
     return true
   })
+}
+
+/**
+ * The row a dedupe key already produced, if any — the CHEAP half of ad-hoc idempotency.
+ *
+ * The unique index is what makes idempotency correct (it wins a race; a read-then-write cannot).
+ * This is what makes it cheap: `generateAction` calls the model BEFORE it writes, so relying on
+ * the index alone means a second click still pays for a second Claude call and only then gets a
+ * 23505. Checking first turns the common case — a double click, a second tab, a refresh — into
+ * one indexed read. The index stays as the backstop for the case this read cannot cover.
+ *
+ * Returns null on a query error rather than throwing: failing to read the cache must not block
+ * the founder, and the index still catches an actual duplicate.
+ */
+export async function findByDedupeKey(
+  client: SupabaseClient,
+  founderId: string,
+  dedupeKey: string,
+): Promise<ActionLogEntry | null> {
+  const { data, error } = await client
+    .from('action_log')
+    .select('*')
+    .eq('founder_id', founderId)
+    .eq('dedupe_key', dedupeKey)
+    .maybeSingle()
+
+  if (error) {
+    log.warn('dedupe lookup failed, falling through to the unique index', { code: error.code })
+    return null
+  }
+  return data ? toEntry(data as ActionLogRow) : null
 }
 
 /** The latest entry per action for one run — an Action's CURRENT state within that execution. */

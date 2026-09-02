@@ -40,9 +40,22 @@ export interface GenerateActionArgs {
   founderId: string
   program: ProgramInstance
   actionId: ActionId
-  executionId: string
+  /**
+   * The rhythm run this Action belongs to, or `null` for a founder-triggered ad-hoc run
+   * (lib/actions/direct.ts) that belongs to no cycle. Every consumer already tolerated null —
+   * action_log.execution_id is nullable, ai_usage_log's is too, and the composer synthesises one
+   * when absent — so this widening is a type catching up with the data model, not a relaxation.
+   */
+  executionId: string | null
   activePrograms: ProgramId[]
   context: CompanyContext
+  /**
+   * Idempotency for a run with no execution_id. action_log's existing guard is a partial unique
+   * index on (action_id, execution_id) WHERE execution_id IS NOT NULL, which by definition does
+   * not apply to an ad-hoc run — so without this, two clicks would be two rows and two paid model
+   * calls. A 23505 here surfaces as AlreadyExecutedError, exactly as the per-run index does.
+   */
+  dedupeKey?: string
 }
 
 async function callLLM(text: string, usageContext?: UsageContext): Promise<string> {
@@ -182,14 +195,15 @@ export async function generateAction(
     actionId: args.actionId,
     activePrograms: args.activePrograms,
     context: args.context,
-    executionId: args.executionId,
+    // The composer synthesises one when absent, so an ad-hoc run needs no fake id.
+    executionId: args.executionId ?? undefined,
   })
 
   const usageContext: UsageContext = {
     founderId: args.founderId,
     programId: args.program.id,
     actionId: args.actionId,
-    executionId: args.executionId,
+    executionId: args.executionId ?? undefined,
   }
 
   let raw: string
@@ -235,6 +249,7 @@ export async function generateAction(
       status: 'pending_approval',
       programId: args.program.id,
       executionId: args.executionId,
+      dedupeKey: args.dedupeKey ?? null,
       provider: action.connector ?? null,
       payload,
       payloadRef,
@@ -263,6 +278,7 @@ export async function generateAction(
     status: 'executed',
     programId: args.program.id,
     executionId: args.executionId,
+    dedupeKey: args.dedupeKey ?? null,
     payload,
     result: {
       kind: 'internal_analysis',
