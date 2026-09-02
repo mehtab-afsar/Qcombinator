@@ -654,6 +654,69 @@ data is PII whose copies outlive their source row, and aggregate revenue carries
 
 ---
 
+## ADR-039 — Reply detection is founder-attributable, never autonomous: a page load may read a mailbox; a cron and a cycle step may not 🔒
+
+**Date:** 3 Sep 2026 · **Status:** Locked · **Related:** ADR-004, ADR-009/F15, ADR-026, ADR-028,
+ADR-038 (which explicitly declined to grant this and said Gmail-read "needs its own decision" —
+this is it)
+
+**Decision (Mo, on the play-library plan):** the product may look for replies to outreach **it
+itself sent**, and the trigger for that look is a **founder's own page load** of
+`/founder/executive` — `POST /api/signals/outreach-replies`, once per session. Not a cron, not a
+Rhythm cycle step, not a webhook. What it finds is written to `outreach_reply_signals` and, at
+most, produces a notification. **Nothing is drafted until the founder presses a button.**
+
+**THE TWO LINES, and they are why this is safe:**
+
+1. **Detection never starts work.** `lib/rhythm/delta.ts` is untouched, exactly as ADR-038 leaves
+   it untouched for Stripe. A reply appearing in the delta digest would flip `hasNewInput` and make
+   the outside world *cause* asset regeneration — ADR-028's decided territory. Instead the founder
+   sees "3 people replied" and clicks; `lib/actions/direct.ts` runs one Action ad hoc.
+   `__tests__/outreach-replies-adr-guard.test.ts` asserts `delta.ts` contains no reply/outreach/
+   signal reference. If that test fails, this line has been crossed and needs its own ADR.
+
+2. **No cycle step calls Gmail.** The connector-calling module (`lib/signals/outreach-replies.ts`)
+   and the passive table read a cycle uses (`lib/signals/context.ts`) are separate files precisely
+   so this is checkable, and the guard test asserts nothing under `lib/rhythm/**` imports the
+   former. This is the same split ADR-038 relied on for Stripe, made structural rather than
+   incidental — and it is what keeps ADR-026 intact while still letting an Action see real replies.
+
+**Why a page load is the right trigger, and not a euphemism for a cron.** Reading someone's mailbox
+should require them to be present. `lib/connectors/gmail/read.ts` already phrases the rule as "a
+founder's own click"; a page view is that principle one step wider — still attributable to a
+specific person being in the product at that moment, still incapable of running while nobody is
+using it. A cron reading mailboxes overnight is a different capability with a different consent
+story, and is exactly what ADR-026 defers. Recording the distinction here rather than in a
+docstring is deliberate: the next person to add a cron will read this log, not that file.
+
+**What bounds the external call.** In gate order: nothing sent → no Gmail call at all (the stop for
+every founder today, at two indexed reads); a six-hour cadence cursor (`outreach_reply_sweeps`) so
+reloading twice costs one look; 25 sends per sweep, so one page visit can never become a storm;
+`format=metadata` only, so a message body is never fetched; and a domain, never an address, is
+persisted.
+
+**⚠️ THIS IS NOT THE OUTCOME LOOP (ADR-009/F15).** A detected reply feeds the founder's attention
+and one Action's Company Context. It is never aggregated, never scored, and never reaches
+`applyAgentScoreSignal` — the guard test asserts nothing under `lib/signals/**` mentions the score
+signal, and the migration says so in its own header. F15's deferral, and its retention gate, are
+untouched by this ADR.
+
+**And nothing reached from the click can send.** `lib/actions/direct.ts` refuses any Action
+declaring `irreversible: true` as its first statement, before the mandate is even read. The ad-hoc
+path can produce a draft; it can never produce a send. ADR-004's approval boundary remains the only
+way anything leaves the building.
+
+**Rejected:**
+- **A cron sweep** — the autonomous capability ADR-026 defers, dressed as a convenience.
+- **A Gmail push webhook** — same objection, plus it would fire with nobody present.
+- **Auto-drafting on detection** — this is where notice-and-ask earns its name. The system reaching
+  level 5 (starting work by itself) is the ADR-028/026 reversal: a real future decision, not a gap
+  to close quietly.
+- **A `handled` column on the signal row** — a second source of truth for something `action_log`
+  already records. Derived from the follow-up run's `dedupe_key` instead.
+
+---
+
 ## Open (non-blocking)
 
 - Rhythm cadence configuration (weekly default — per-company override?). *Decide during Story 2.*

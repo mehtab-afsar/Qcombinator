@@ -11,7 +11,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getCurrentContract } from '@/lib/mandate/contract'
-import { getProgram, getAction } from '@/lib/registry'
+import { getProgram } from '@/lib/registry'
 import { AssetPersistenceError } from '@/lib/assets/validation'
 import { generateBriefing } from '@/lib/briefings/generate'
 import { BriefingError } from '@/lib/briefings/briefings'
@@ -26,7 +26,6 @@ import { RhythmError } from './errors'
 export { RhythmError }
 import { generateAction } from '@/lib/actions/generate'
 import { AlreadyExecutedError } from '@/lib/actions/log'
-import type { CompanyContext } from '@/lib/prompts/types'
 import { createOrResumeRun, finishRun, getRun, recordStep } from './runs'
 import { createNotification } from '@/lib/notifications/create'
 import { notifyActionPending } from '@/lib/actions/notify-pending'

@@ -15,6 +15,15 @@
  * founder pilot hasn't yet justified building. Whatever calls `searchGmailThreads`/`getGmailThread`
  * must trace back to a founder's own click, not a cron or a cycle step.
  *
+ * ⚠️ AMENDED BY ADR-039 (3 Sep 2026) — "a founder's own click" is now "a founder's own presence",
+ * and the boundary moved a step, not away. `lib/signals/outreach-replies.ts` sweeps for replies on
+ * a founder's PAGE LOAD rather than a button press, via `lib/connectors/gmail/replies.ts` (Gmail
+ * REST, `format=metadata` only). It is still attributable to a specific person being in the
+ * product at that moment, and still cannot run while nobody is using it. **A cron and a cycle step
+ * remain prohibited** — and structurally so: `lib/rhythm/**` may import `lib/signals/context.ts`
+ * (a plain table read) but never the sweep, which `__tests__/outreach-replies-adr-guard.test.ts`
+ * asserts. Before adding a scheduled mailbox read, read ADR-039; it rejects exactly that.
+ *
  * ⚠️ `send()` is NOT meaningful here and honestly refuses rather than silently no-op-ing — this
  * connector only reads. It still implements the full `Connector` interface so it can reuse the
  * exact same registry/vault/grant/revoke machinery every other connector already has (F13), which

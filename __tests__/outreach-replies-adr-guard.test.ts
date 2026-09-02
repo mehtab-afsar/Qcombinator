@@ -129,3 +129,44 @@ describe('the table keeps action_log\'s discipline', () => {
     expect(s).not.toMatch(/for (insert|update|delete)/i)
   })
 })
+
+describe('ADR-039 — the decision is written down where the next person will look', () => {
+  // A rule that lives only in a docstring gets read by whoever opens that file, which is not the
+  // person about to add a cron. It has to be in the log, and the file has to point at it.
+  const log = read('docs/DecisionLog.md')
+
+  it('the ADR exists, is locked, and rejects a cron by name', () => {
+    expect(log).toContain('## ADR-039')
+    expect(log).toMatch(/## ADR-039[^\n]*🔒/)
+    expect(log).toMatch(/\*\*A cron sweep\*\*/)
+  })
+
+  it('it closes the question ADR-038 explicitly left open for Gmail-read', () => {
+    // ADR-038: "PostHog and Gmail-read ... Each needs its own decision; this ADR does not grant
+    // them." An ADR that does grant one must say which.
+    const adr = log.slice(log.indexOf('## ADR-039'))
+    expect(adr).toContain('ADR-038')
+  })
+
+  it('it states both lines it depends on — no regeneration, no cycle-step connector call', () => {
+    const adr = log.slice(log.indexOf('## ADR-039'))
+    expect(adr).toContain('delta.ts')
+    expect(adr).toContain('ADR-026')
+    expect(adr).toContain('ADR-028')
+  })
+
+  it('and says this is not the Outcome Loop, so F15 is not quietly widened', () => {
+    const adr = log.slice(log.indexOf('## ADR-039'))
+    expect(adr).toMatch(/F15/)
+  })
+
+  it('⚠️ the connector docstring points at it, so the rule is not only in the log', () => {
+    // The specific failure: someone opens gmail/read.ts, reads "a founder's own click", sees a
+    // page-load sweep in the codebase, concludes the rule is dead, and adds the cron.
+    // Whitespace-normalised: the sentence wraps across a comment line, and a test that breaks
+    // when someone rewraps a paragraph is a test people delete.
+    const src = read('lib/connectors/gmail/read.ts').replace(/\s*\n\s*\*\s*/g, ' ')
+    expect(src).toContain('ADR-039')
+    expect(src).toMatch(/cron and a cycle step remain prohibited/i)
+  })
+})

@@ -100,7 +100,7 @@ export function renderCompanyContext(
   // Narrowly populated too (pulledDataContextFor) — one row per (founder, action), never present
   // for an Asset or a Briefing. The label says "You Pulled In" deliberately: this is real
   // Connector data the founder explicitly asked for once, not something fetched on its own.
-  field('Real Data You Pulled In', context.pulledData),
+  field('Real Data You Pulled In', context.pulledData)
   // Narrow too (outreachRepliesContextFor), and only for a Program that sends outreach at all.
   // A domain and an excerpt — never an address, never a full body.
   field('Replies To Outreach You Sent', context.outreachReplies)
