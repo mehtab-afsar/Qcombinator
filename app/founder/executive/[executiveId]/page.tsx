@@ -35,6 +35,7 @@ import { BriefingsPanel } from '@/features/executive/components/BriefingsPanel'
 import { ActionsPanel } from '@/features/executive/components/ActionsPanel'
 import { ProgramAssetsPanel } from '@/features/executive/components/ProgramAssetsPanel'
 import { ContactsPrompt } from '@/features/executive/components/ContactsPrompt'
+import { OutreachRepliesPrompt } from '@/features/executive/components/OutreachRepliesPrompt'
 import { LeadsPanel } from '@/features/executive/components/LeadsPanel'
 import { ExecutiveAnchor } from '@/features/executive/components/ExecutiveAnchor'
 import { BirdsEyeStats } from '@/features/executive/components/BirdsEyeStats'
@@ -235,6 +236,7 @@ export default function ExecutiveDetailPage() {
                         LeadsPanel is the sole door to /founder/leads (no sidebar entry, by
                         design); it renders nothing until a cycle has actually found some. */}
                     {panelProgramTemplateId === 'P005' && <LeadsPanel />}
+                    {panelProgramTemplateId === 'P005' && <OutreachRepliesPrompt />}
                     {panelProgramTemplateId === 'P005' && <ContactsPrompt />}
                     {/* 3. Documents (§4.3) */}
                     <ProgramAssetsPanel

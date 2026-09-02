@@ -25,7 +25,7 @@
  * — this codebase's one existing convention for shared client state, not a new one.
  */
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import { useCycleLive } from '../lib/useCycleLive'
 import type { Contract, ExecutiveSummary, ProgramInstance } from '../types/executive.types'
@@ -35,6 +35,16 @@ import type { ArtifactCardData } from '../components/ArtifactCard'
 interface ActionsState {
   pending: PendingAction[]
   all: ActionSummary[]
+}
+
+/** GET /api/signals/outreach-replies — see lib/signals/replies-summary.ts. */
+export interface ReplySummary {
+  count: number
+  newestSignalId: string | null
+  newestAt: string | null
+  handled: boolean
+  /** Minted server-side; the client passes it back untouched. */
+  followUpKey: string | null
 }
 
 /**
@@ -65,9 +75,13 @@ interface ExecutiveWorkspace {
   assetsLoaded: boolean
   /** The Executive model isn't switched on for this deployment (the APIs 404). */
   disabled: boolean
+  /** Replies to outreach the team sent. Zero for everyone who has never sent any. */
+  replies: ReplySummary
   refreshContract: () => Promise<void>
   refreshActions: () => Promise<void>
   refreshAssets: () => Promise<void>
+  /** Re-read the summary after the founder acts on it — the click's "drafted" state. */
+  refreshReplies: () => Promise<void>
 }
 
 const ExecutiveWorkspaceContext = createContext<ExecutiveWorkspace | undefined>(undefined)
@@ -81,6 +95,9 @@ export function useExecutiveWorkspace(): ExecutiveWorkspace {
 }
 
 const EMPTY_ACTIONS: ActionsState = { pending: [], all: [] }
+const NO_REPLIES: ReplySummary = {
+  count: 0, newestSignalId: null, newestAt: null, handled: false, followUpKey: null,
+}
 
 export function ExecutiveWorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth()
@@ -89,6 +106,7 @@ export function ExecutiveWorkspaceProvider({ children }: { children: ReactNode }
   const [programs, setPrograms] = useState<ProgramInstance[]>([])
   const [actions, setActions] = useState<ActionsState>(EMPTY_ACTIONS)
   const [assets, setAssets] = useState<WorkspaceAsset[]>([])
+  const [replies, setReplies] = useState<ReplySummary>(NO_REPLIES)
   const [loaded, setLoaded] = useState(false)
   const [actionsLoaded, setActionsLoaded] = useState(false)
   const [assetsLoaded, setAssetsLoaded] = useState(false)
@@ -151,6 +169,16 @@ export function ExecutiveWorkspaceProvider({ children }: { children: ReactNode }
     }
   }, [])
 
+  const refreshReplies = useCallback(async () => {
+    try {
+      const res = await fetch('/api/signals/outreach-replies')
+      if (!res.ok) return // 404 = flag off
+      setReplies(await res.json())
+    } catch {
+      /* transient — a prompt that doesn't appear costs an opportunity, not a page */
+    }
+  }, [])
+
   // Executives + contract + programs: once, as soon as a founder session exists.
   useEffect(() => {
     if (authLoading) return
@@ -182,9 +210,29 @@ export function ExecutiveWorkspaceProvider({ children }: { children: ReactNode }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshAssets is a stable useCallback; generation is the real trigger
   }, [authLoading, user, generation])
 
+  // Replies: sweep ONCE per session, then read the summary.
+  //
+  // ⚠️ The sweep is the product's only look at the outside world that no button started, so what
+  // bounds it matters. Three things do: a ref so React's development double-mount cannot fire it
+  // twice, the route's own gates (nothing sent → no Gmail call at all, which is every founder
+  // today), and a six-hour cadence cursor server-side. Deliberately NOT keyed on `generation` —
+  // a cycle running does not make new replies appear, and re-sweeping on every step would turn
+  // one page visit into a mailbox poll.
+  const sweptRef = useRef(false)
+  useEffect(() => {
+    if (authLoading || !user || sweptRef.current) return
+    sweptRef.current = true
+    void (async () => {
+      // Fire-and-forget: the summary is read whether or not the sweep found anything, so a slow
+      // or failed Gmail round trip never delays what is already known.
+      await fetch('/api/signals/outreach-replies', { method: 'POST' }).catch(() => null)
+      await refreshReplies()
+    })()
+  }, [authLoading, user, refreshReplies])
+
   const value: ExecutiveWorkspace = {
-    executives, contract, programs, actions, assets, loaded, actionsLoaded, assetsLoaded, disabled,
-    refreshContract, refreshActions, refreshAssets,
+    executives, contract, programs, actions, assets, replies, loaded, actionsLoaded, assetsLoaded,
+    disabled, refreshContract, refreshActions, refreshAssets, refreshReplies,
   }
 
   return <ExecutiveWorkspaceContext.Provider value={value}>{children}</ExecutiveWorkspaceContext.Provider>

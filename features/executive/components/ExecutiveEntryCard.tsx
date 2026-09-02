@@ -37,6 +37,8 @@ export interface DoorState {
   mandate: JourneyState
   briefing: Briefing | null
   pendingCount: number
+  /** Replies to outreach the team sent, and whether follow-ups were already drafted for them. */
+  replies: { count: number; handled: boolean }
 }
 
 /**
@@ -57,6 +59,21 @@ export function contentFor(state: DoorState): DoorContent | null {
         ? 'One action is waiting for your approval'
         : `${state.pendingCount} actions are waiting for your approval`,
       cta: 'Review',
+      href: '/founder/executive',
+    }
+  }
+
+  // Someone answered the team's outreach and nothing has been drafted about it yet. Ranked BELOW
+  // the approval checkpoint deliberately: that one is blocked on the founder, this one is an
+  // opportunity waiting for them. Above the briefing, because a real person replying is more
+  // worth their next minute than a summary of work already done.
+  if (state.replies.count > 0 && !state.replies.handled) {
+    return {
+      eyebrow: 'Someone replied',
+      headline: state.replies.count === 1
+        ? 'Someone replied to your outreach.'
+        : `${state.replies.count} people replied to your outreach.`,
+      cta: 'Draft follow-ups',
       href: '/founder/executive',
     }
   }
@@ -123,7 +140,7 @@ export function ExecutiveEntryCard() {
   const { qScore, loading: qScoreLoading } = useQScore()
   // Contract + pending actions come from the shared workspace; only strategy and the latest
   // briefing have no shared home yet and stay self-fetched here.
-  const { contract, loaded: workspaceLoaded, disabled, actions } = useExecutiveWorkspace()
+  const { contract, loaded: workspaceLoaded, disabled, actions, replies } = useExecutiveWorkspace()
   const [strategy, setStrategy] = useState<Strategy | null>(null)
   const [strategyLoaded, setStrategyLoaded] = useState(false)
   const [briefing, setBriefing] = useState<Briefing | null>(null)
@@ -167,7 +184,10 @@ export function ExecutiveEntryCard() {
   // 404 on either read = the flag is off. Render nothing; the live dashboard is unaffected.
   if (qScoreLoading || !workspaceLoaded || !strategyLoaded || disabled) return null
 
-  const state: DoorState = { mandate, briefing, pendingCount: actions.pending.length }
+  const state: DoorState = {
+    mandate, briefing, pendingCount: actions.pending.length,
+    replies: { count: replies.count, handled: replies.handled },
+  }
   const content = contentFor(state)
   if (!content) return null
 

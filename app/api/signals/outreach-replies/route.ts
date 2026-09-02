@@ -12,6 +12,11 @@
  * ADR-028 intact — a cycle is still fed by founder activity — while the product can still notice
  * something the founder has not.
  *
+ * GET on the same path answers the screen's question instead — how many replies are known, and
+ * has a follow-up already been drafted for them. A plain table read: no Gmail, no gates, safe to
+ * call on any render. The two verbs are split that way on purpose — POST may cost an external
+ * call and is fired once per session; GET is free and can be re-asked after the founder clicks.
+ *
  * Thin: flag → auth → anchor → call the sweep → return (CLAUDE.md §2). No connector logic here.
  */
 
@@ -21,6 +26,7 @@ import { verifyAuth } from '@/lib/auth/verify'
 import { newModelOff } from '@/lib/api/response'
 import { getAnchorFounderId } from '@/lib/team/founder-permissions'
 import { sweepOutreachReplies } from '@/lib/signals/outreach-replies'
+import { getReplySummary } from '@/lib/signals/replies-summary'
 import { log } from '@/lib/logger'
 
 export async function POST(): Promise<NextResponse> {
@@ -46,5 +52,28 @@ export async function POST(): Promise<NextResponse> {
     // invisible to the founder — nothing on their page depends on this succeeding.
     log.warn('POST /api/signals/outreach-replies', { err })
     return NextResponse.json({ status: 'error', sendsChecked: 0, repliesFound: 0 })
+  }
+}
+
+export async function GET(): Promise<NextResponse> {
+  const off = newModelOff()
+  if (off) return off
+
+  const auth = await verifyAuth()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const empty = { count: 0, newestSignalId: null, newestAt: null, handled: false, followUpKey: null }
+
+  try {
+    const admin = createAdminClient()
+    const founderId = await getAnchorFounderId(auth.user.id, admin)
+    if (!founderId) return NextResponse.json(empty)
+
+    return NextResponse.json(await getReplySummary(admin, founderId))
+  } catch (err) {
+    // Same posture as POST: a prompt that fails to appear is a missed opportunity, a page that
+    // fails to render is a bug. Degrade to "nothing to show".
+    log.warn('GET /api/signals/outreach-replies', { err })
+    return NextResponse.json(empty)
   }
 }

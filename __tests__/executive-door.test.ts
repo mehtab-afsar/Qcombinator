@@ -14,8 +14,10 @@
 
 import { contentFor, type DoorState } from '@/features/executive/components/ExecutiveEntryCard'
 
+const NO_REPLIES = { count: 0, handled: false }
+
 const at = (over: Partial<DoorState> = {}): DoorState =>
-  ({ mandate: 'no_strategy', briefing: null, pendingCount: 0, ...over })
+  ({ mandate: 'no_strategy', briefing: null, pendingCount: 0, replies: NO_REPLIES, ...over })
 
 const briefing = { id: 'b1', verdict: 'Two ICPs validated; messaging needs work.', createdAt: '' }
 
@@ -87,5 +89,44 @@ describe('what the door says', () => {
       const content = contentFor(state)!
       expect(content.cta).not.toMatch(/approve|dismiss|acknowledge|accept/i)
     }
+  })
+})
+
+describe('a reply outranks the briefing, and never the approval checkpoint', () => {
+  // The ordering IS the product decision. An approval is blocked on the founder; a reply is an
+  // opportunity waiting for them; a briefing is a summary of work already done.
+  it('shows the reply when nothing is pending', () => {
+    const content = contentFor(at({ mandate: 'confirmed', replies: { count: 3, handled: false } }))!
+    expect(content.eyebrow).toBe('Someone replied')
+    expect(content.headline).toContain('3 people')
+  })
+
+  it('⚠️ still shows the approval first when something is pending', () => {
+    const content = contentFor(at({
+      mandate: 'confirmed', pendingCount: 1, replies: { count: 3, handled: false },
+    }))!
+    expect(content.eyebrow).toBe('Needs you')
+  })
+
+  it('outranks a briefing that already exists', () => {
+    const content = contentFor(at({
+      mandate: 'confirmed',
+      briefing: { id: 'b1', verdict: 'Pipeline is thin.', createdAt: '2026-09-01' },
+      replies: { count: 1, handled: false },
+    }))!
+    expect(content.eyebrow).toBe('Someone replied')
+  })
+
+  it('says nothing once follow-ups are drafted — it falls back to the briefing', () => {
+    const briefing = { id: 'b1', verdict: 'Pipeline is thin.', createdAt: '2026-09-01' }
+    const content = contentFor(at({
+      mandate: 'confirmed', briefing, replies: { count: 3, handled: true },
+    }))!
+    expect(content.headline).toBe(briefing.verdict)
+  })
+
+  it('singular reads as one person, not "1 people"', () => {
+    const content = contentFor(at({ mandate: 'confirmed', replies: { count: 1, handled: false } }))!
+    expect(content.headline).toBe('Someone replied to your outreach.')
   })
 })
