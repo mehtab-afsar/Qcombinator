@@ -34,10 +34,29 @@ const TIMEOUT_MS = 30_000
  * Deterministic so the SAME logical send always produces the SAME id — that is what makes it
  * findable after an ambiguous failure. A random id would be unrecoverable exactly when it
  * matters.
+ *
+ * ⚠️ THERE MUST ONLY EVER BE ONE IMPLEMENTATION OF THIS. It is the join key between a send and
+ * anything that later looks for that send in the mailbox — reconcile() below, and reply
+ * detection in ./replies.ts. `action_log.payload_hash` is the idempotency key and is kept
+ * forever, so the id is recomputable for any past send. A second copy that drifts by one
+ * character would break that correlation silently and permanently, with no failing test and no
+ * error — every reply would simply never be found. Import this function; never re-derive it.
+ *
+ * ⚠️ Depends on APP_DOMAIN. Changing the app's domain makes every previously-sent message
+ * uncorrelatable, because the id we would recompute no longer matches the one Gmail stored.
  */
-function messageIdFor(idempotencyKey: string): string {
+export function messageIdFor(idempotencyKey: string): string {
   const digest = createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 32)
   return `<${digest}@${APP_DOMAIN}>`
+}
+
+/**
+ * Gmail's search syntax for "the message carrying this RFC-5322 Message-ID". The angle brackets
+ * are part of the header value but must not appear in the query — shared so the search half and
+ * the id half can never disagree about that.
+ */
+export function rfc822Query(messageId: string): string {
+  return `rfc822msgid:${messageId.replace(/[<>]/g, '')}`
 }
 
 /** RFC-5322 message, base64url-encoded as Gmail's API requires. */
@@ -123,7 +142,7 @@ export const gmailConnector: Connector = {
       return null
     }
 
-    const query = `rfc822msgid:${messageIdFor(idempotencyKey).replace(/[<>]/g, '')}`
+    const query = rfc822Query(messageIdFor(idempotencyKey))
     const res = await fetch(
       `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}`,
       { headers: { Authorization: `Bearer ${grant.accessToken}` } },
@@ -147,5 +166,6 @@ export const gmailConnector: Connector = {
   },
 }
 
-/** Exposed for tests — the id must be deterministic or reconciliation cannot work. */
+/** @deprecated Kept so existing tests keep importing a name they already know. `messageIdFor`
+ *  is now a real export; prefer it. */
 export const __messageIdFor = messageIdFor
