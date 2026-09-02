@@ -17,6 +17,7 @@
 import {
   Bell, MessageCircle, UserPlus, CheckCircle2, TrendingUp, Handshake, Link2, CreditCard,
   UserCog, UserX, CalendarCheck, AlertTriangle, Megaphone, Eye, ClipboardCheck, FileText,
+  MailOpen,
   type LucideIcon,
 } from 'lucide-react'
 import { blue, green, amber, red, purple, cyan, muted } from '@/lib/constants/colors'
@@ -143,6 +144,15 @@ export const NOTIFICATION_REGISTRY = {
     // (ActionsPanel), matching CLAUDE.md: "no approval gates... except irreversible external
     // Actions." A founder can't opt out of being told one exists.
     preferenceCategory: null,
+    deepLink: () => '/founder/executive',
+  },
+  outreach_replies_detected: {
+    icon: MailOpen, color: blue, label: 'Cycle updates', channel: 'in-app',
+    // Deliberately NOT action_pending's `preferenceCategory: null`. That carve-out exists because
+    // a founder cannot be allowed to miss the product's one safety checkpoint. A reply is an
+    // OPPORTUNITY, not a checkpoint — making it equally un-opt-out-able would devalue the
+    // distinction, and the founder can always see the replies on the executive page anyway.
+    preferenceCategory: 'cycle_briefings',
     deepLink: () => '/founder/executive',
   },
   briefing_published: {

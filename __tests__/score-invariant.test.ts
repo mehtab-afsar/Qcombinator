@@ -36,6 +36,12 @@ const NEW_MODEL_PATHS = [
   'lib/assets',
   'lib/briefings',
   'lib/connectors',
+  // Execution-adjacent: it reads action_log and feeds Company Context, which is exactly the
+  // surface ADR-005 guards. Adding a folder like this WITHOUT listing it here leaves the
+  // invariant silently unenforced for it.
+  // ⚠️ This scan trips on PROSE as well as calls — comments under lib/signals must say
+  // "the score signal", never the symbol name.
+  'lib/signals',
   'features/executive',
 ];
 
