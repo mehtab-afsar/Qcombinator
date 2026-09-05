@@ -6,8 +6,8 @@ import type { ParsedReport } from './parse'
 /**
  * Locally-templated short result + full report, built only from the deterministic scores — no
  * LLM call, always available. Used when routedText() throws or returns text that doesn't match
- * the expected format. Mirrors app/api/webhook/lead/route.ts's hardcoded-fallback-on-AI-failure
- * pattern: a visitor must always get SOME result.
+ * the expected format. The rule is that a visitor must always get SOME result, so an AI
+ * failure degrades to this rather than to an error page.
  */
 export function buildFallbackReport(result: LeverageCheckResult): ParsedReport {
   const archetype = ARCHETYPE_COPY[result.archetype]

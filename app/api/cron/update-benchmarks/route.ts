@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { clearAllCaches } from '@/lib/cache/qscore-cache'
 import { mapToSector, mapToStage, SECTORS, STAGES } from '@/lib/qscore/sector-stage-buckets'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 const INDICATOR_IDS = [
   '1.1', '1.2', '1.3', '1.4', '1.5',
@@ -22,11 +23,8 @@ const MIN_SAMPLE = 20
 
 export async function POST(req: NextRequest) {
   // Verify cron secret — only accept Authorization: Bearer <CRON_SECRET>
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = verifyCronSecret(req)
+  if (denied) return denied
 
   const supabase = getAdminClient()
 

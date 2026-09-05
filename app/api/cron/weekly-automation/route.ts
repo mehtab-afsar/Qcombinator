@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { encodeToken } from '@/lib/email/unsubscribe-token';
 import { APP_URL, APP_DOMAIN } from '@/lib/constants/app';
 import { log } from '@/lib/logger'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 // Stale deal threshold: deals not updated in 7+ days (non-terminal stages)
 const STALE_DEAL_DAYS = 7;
@@ -15,13 +16,8 @@ const RETENTION_ALERT_THRESHOLD = 30;  // % Day-30 retention → alert if below 
 // Sends weekly OKR standups + runway alerts to all active founders.
 
 export async function GET(request: Request) {
-  // Verify cron secret — Vercel sends Authorization: Bearer <CRON_SECRET>
-  const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 });
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const denied = verifyCronSecret(request);
+  if (denied) return denied;
 
   const resendKey = process.env.RESEND_API_KEY;
   if (!resendKey) {

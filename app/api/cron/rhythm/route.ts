@@ -27,16 +27,12 @@ import { createOrResumeRun, CycleAlreadyRanError } from '@/lib/rhythm/runs'
 import { triggerNextRhythmStep } from '@/lib/rhythm/trigger'
 import { weekCycleKey } from '@/lib/rhythm/cycle-key'
 import { log } from '@/lib/logger'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 export async function GET(request: Request): Promise<NextResponse> {
   // Fail closed on the secret (ADR-017): unset → 503, mismatch → 401. Never fail-open.
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
-    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
-  }
-  if (request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = verifyCronSecret(request)
+  if (denied) return denied
 
   // Inert until the new model is on — no spend on a stray trigger.
   if (!FF_NEW_EXECUTIVE_MODEL) {

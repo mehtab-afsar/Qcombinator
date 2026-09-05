@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { log } from '@/lib/logger'
 import { createNotifications } from '@/lib/notifications/create'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 /**
  * GET /api/cron/investor-match-alerts
@@ -12,11 +13,8 @@ import { createNotifications } from '@/lib/notifications/create'
  * Requires CRON_SECRET in Authorization: Bearer header.
  */
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = verifyCronSecret(req)
+  if (denied) return denied
 
   const supabase = getAdminClient()
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()

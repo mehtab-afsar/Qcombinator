@@ -20,6 +20,7 @@ import { getAllIndicatorPercentiles } from '@/features/qscore/benchmarking/bench
 import { generateScoreIntelligence, type ScoreIntelligence } from '@/features/qscore/services/score-intelligence'
 import type { SectionData } from '@/lib/profile-builder/data-merger'
 import { embedText } from '@/features/qscore/scoring/embeddings/embedder'
+import { APP_EMAIL_FROM } from '@/lib/constants/app'
 
 export async function POST(_req: NextRequest) {
   try {
@@ -378,7 +379,11 @@ export async function POST(_req: NextRequest) {
                 Authorization: `Bearer ${RESEND_KEY}`,
               },
               body: JSON.stringify({
-                from: 'Edge Alpha <scores@edgealpha.io>',
+                // ⚠️ Was hardcoded to 'scores@edgealpha.io' — a domain this product does not
+                // own and Resend has never verified, so this email silently failed to deliver
+                // for its entire life. APP_EMAIL_FROM is the single source (lib/constants/app.ts)
+                // and is the only from-address any send should use.
+                from: APP_EMAIL_FROM,
                 to: fp.email,
                 subject: `You hit 70 — Investor Marketplace is now live`,
                 html: `<p>Hi ${name},</p>

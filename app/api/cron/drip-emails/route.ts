@@ -2,17 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
 import { sendDay1NudgeEmail, sendDay7NudgeEmail } from '@/lib/email/send'
 import { log } from '@/lib/logger'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 // POST /api/cron/drip-emails
 // Runs daily at 10:00 UTC via Vercel cron.
 // Sends day-1 nudge (profile builder) and day-7 nudge (AI advisors) to inactive founders.
 // Free Supabase: no pg_cron — cron lives here and is scheduled in vercel.json.
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = verifyCronSecret(req)
+  if (denied) return denied
 
   const admin = createAdminClient()
   const now = new Date()

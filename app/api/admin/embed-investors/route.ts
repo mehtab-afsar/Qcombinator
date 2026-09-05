@@ -15,16 +15,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/supabase/server'
 import { embedBatch } from '@/features/qscore/scoring/embeddings/embedder'
 import { log } from '@/lib/logger'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 const BATCH_SIZE = 20
 
 export async function POST(request: NextRequest) {
-  // Gate behind CRON_SECRET so this can't be called by random users
-  const secret = process.env.CRON_SECRET
-  const authHeader = request.headers.get('Authorization')
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Gate behind CRON_SECRET so this can't be called by random users.
+  const denied = verifyCronSecret(request)
+  if (denied) return denied
 
   if (!process.env.VOYAGE_API_KEY) {
     return NextResponse.json({ error: 'VOYAGE_API_KEY not configured' }, { status: 500 })
@@ -41,7 +39,12 @@ export async function POST(request: NextRequest) {
       .not('thesis', 'is', null)
       .is('thesis_embedding', null)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) {
+      // The caller gets a generic failure; the Postgres message (which names tables, columns
+      // and constraints) goes to the log instead.
+      log.error('[embed-investors] investor read failed', { err: error })
+      return NextResponse.json({ error: 'Could not read investors' }, { status: 500 })
+    }
     if (!investors || investors.length === 0) {
       return NextResponse.json({ message: 'All investors already embedded', processed: 0 })
     }

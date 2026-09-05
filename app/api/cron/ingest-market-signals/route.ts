@@ -4,6 +4,7 @@ import { fetchFundingFeed, type RssFundingItem } from '@/lib/techcrunch-rss'
 import { composeAdhocPrompt } from '@/lib/prompts/compose'
 import { routedText } from '@/lib/llm/router'
 import { log } from '@/lib/logger'
+import { verifyCronSecret } from '@/lib/auth/cron'
 
 // GET /api/cron/ingest-market-signals
 // Runs every 6 hours via Vercel cron (see vercel.json) — RAG Phase 3.
@@ -12,11 +13,8 @@ import { log } from '@/lib/logger'
 // and stores every classified item so a non-funding item is never re-fetched-and-re-classified
 // on a future tick (see the migration's comment for why "store everything" matters here).
 export async function GET(req: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
-  if (req.headers.get('authorization') !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = verifyCronSecret(req)
+  if (denied) return denied
 
   const admin = createAdminClient()
   const SOURCE = 'techcrunch_rss'
