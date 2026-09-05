@@ -124,3 +124,51 @@ describe('ADR-005 — the new model never moves the Q-Score', () => {
     expect(files.length).toBeGreaterThanOrEqual(0);
   });
 });
+
+/**
+ * ⚠️ THE BRIDGE — the hole the folder scan above cannot see.
+ *
+ * `features/qscore` is deliberately NOT in NEW_MODEL_PATHS: it is the folder the score's own
+ * writer lives in, so scanning it wholesale would fail on legitimate code. But the engine now
+ * reaches INTO that folder — `lib/rhythm/context.ts` and `lib/mandate/strategy-proposal.ts` both
+ * import `features/qscore/services/latest-score.ts` to put the founder's score into Company
+ * Context. That import is the exact shape of a bypass: everything the engine calls through it is
+ * outside the guard, so a write added there would breach ADR-005 with every test still green.
+ *
+ * So the reach itself is checked. Whatever the engine imports from `features/qscore` is resolved
+ * and required to be read-only — derived from the actual import statements, not a list, so a new
+ * import inherits this on the day it is written.
+ */
+describe('ADR-005 — what the engine reaches into features/qscore for is read-only', () => {
+  const QSCORE_IMPORT = /from\s+['"]@\/(features\/qscore\/[^'"]+)['"]/g;
+
+  const reached = new Set<string>();
+  for (const file of NEW_MODEL_PATHS.flatMap(collectSourceFiles)) {
+    const source = readFileSync(file, 'utf8');
+    for (const [, specifier] of source.matchAll(QSCORE_IMPORT)) {
+      for (const candidate of [`${specifier}.ts`, `${specifier}.tsx`, `${specifier}/index.ts`]) {
+        if (existsSync(join(REPO_ROOT, candidate))) { reached.add(candidate); break; }
+      }
+    }
+  }
+  const reachedFiles = [...reached].sort();
+
+  it('the engine does reach in — otherwise this whole block passes vacuously', () => {
+    expect(reachedFiles.length).toBeGreaterThan(0);
+    expect(reachedFiles).toContain('features/qscore/services/latest-score.ts');
+  });
+
+  it.each(reachedFiles)('%s never writes a score row', (file) => {
+    const source = readFileSync(join(REPO_ROOT, file), 'utf8');
+
+    // A write to the score's own tables, by any of Supabase's four mutating verbs.
+    const writes = [...source.matchAll(/\.(insert|update|upsert|delete)\s*\(/g)].map(m => m[1]);
+    expect(writes).toEqual([]);
+  });
+
+  it.each(reachedFiles)('%s does not call the score signal either', (file) => {
+    const source = readFileSync(join(REPO_ROOT, file), 'utf8');
+    expect(source).not.toContain(FORBIDDEN_SYMBOL);
+    expect(source).not.toContain(FORBIDDEN_MODULE);
+  });
+})

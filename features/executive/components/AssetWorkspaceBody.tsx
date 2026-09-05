@@ -8,13 +8,14 @@
  * apart (CLAUDE.md "no duplicated logic").
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Download, Loader2 } from 'lucide-react'
 import { bg, surf, bdr, ink, muted, blue, green, red, white, alpha } from '@/lib/constants/colors'
 import { radius } from '@/features/shared/tokens'
 import { type useAssetWorkspace, type AssetVersion, type AssetDefinition } from '../hooks/useAssetWorkspace'
 import { ReportMarkdown } from './ReportMarkdown'
 import { isLiveStream, type LiveStream } from '../hooks/live-stream'
+import { recordDocumentOpened } from '../lib/documentOpens'
 
 type Disclosure = 'versions' | 'edit' | 'direct' | null
 
@@ -53,6 +54,17 @@ export function AssetWorkspaceBody({
   // now…" for the entire cycle. One shared predicate now, so this and AssetWorkspacePanel
   // cannot answer the same question differently again.
   const isLive = isLiveStream(liveStream)
+
+  // The founder actually looking at a real (non-live) version — the in-app-queryable half of
+  // "did this land" (see ../lib/documentOpens.ts). Keyed by version id in a ref, the same
+  // dedup idiom BriefingsPanel already proved, so a re-render from useAssetWorkspace's own
+  // re-fetch (after a save/direct/restore) never double-counts as a second open.
+  const opened = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (!current || isLive || opened.current.has(current.id)) return
+    opened.current.add(current.id)
+    recordDocumentOpened('asset_version', current.id)
+  }, [current, isLive])
 
   return (
     <div>

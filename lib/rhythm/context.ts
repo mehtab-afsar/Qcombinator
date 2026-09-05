@@ -21,14 +21,17 @@ import type { CompanyContext } from '@/lib/prompts/compose'
 import { getComparableCohortContext } from '@/lib/comparables/retrieve'
 import { getMarketSignalContext } from '@/lib/comparables/market-signals'
 import { getStripeMetricsContext } from '@/lib/connectors/context'
+import { getLatestScoreSummary, getScoreHistory } from '@/features/qscore/services/latest-score'
 import { collectCycleDelta } from './delta'
 import { getLastCompletedRun, type RhythmRun } from './runs'
 import { RhythmError } from './errors'
 
 /**
  * Compact Company Context from Strategy + Contract, plus anonymized comparable-cohort stats
- * (lib/comparables/retrieve.ts — RAG Phase 1) and recent sector-matched market news
- * (lib/comparables/market-signals.ts — RAG Phase 3). Q-Score is a v1 omission — see F10_DESIGN.
+ * (lib/comparables/retrieve.ts — RAG Phase 1), recent sector-matched market news
+ * (lib/comparables/market-signals.ts — RAG Phase 3), and the founder's own current Q-Score
+ * summary + a short trend (features/qscore/services/latest-score.ts) — read-only, a separate
+ * diagnostic never written from here.
  */
 export async function buildContext(
   admin: SupabaseClient,
@@ -56,6 +59,11 @@ export async function buildContext(
   // "Direct the AI" rework (lib/rhythm/direct.ts) gets it for free too, since that calls this
   // same builder.
   const stripeMetrics = await getStripeMetricsContext(admin, founderId).catch(() => null)
+  // A founder not yet scored must never block a cycle — both reads tolerate no data.
+  const [scoreSummary, scoreHistory] = await Promise.all([
+    getLatestScoreSummary(admin, founderId).catch(() => null),
+    getScoreHistory(admin, founderId).catch(() => []),
+  ])
   return {
     strategy: strategyText,
     contract: contractText,
@@ -64,6 +72,9 @@ export async function buildContext(
     comparableCohort: comparableCohort ?? undefined,
     marketSignals: marketSignals ?? undefined,
     stripeMetrics: stripeMetrics ?? undefined,
+    qScore: scoreSummary
+      ? { ...scoreSummary, history: scoreHistory.length > 0 ? scoreHistory : undefined }
+      : undefined,
   }
 }
 

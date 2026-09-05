@@ -19,6 +19,7 @@ import { FONT_SERIF } from '@/features/onboarding/theme'
 import { SectionCard } from '@/features/shared/components/SectionCard'
 import { programName } from '../lib/programLabel'
 import { useCycleLive } from '../lib/useCycleLive'
+import { recordDocumentOpened } from '../lib/documentOpens'
 
 interface Briefing {
   id: string
@@ -100,6 +101,7 @@ export function BriefingsPanel({
     if (!newest || reported.current.has(newest.id)) return
     reported.current.add(newest.id)
     trackBriefingOpened(newest.id, newest.createdAt)
+    recordDocumentOpened('briefing', newest.id)
   }, [briefings])
 
   // Empty state (no rhythm has run yet) — and the loading/failed states share it. A greyed

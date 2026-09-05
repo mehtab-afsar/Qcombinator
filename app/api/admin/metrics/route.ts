@@ -74,6 +74,87 @@ export function aggregateActionLog(rows: ActionLogRow[]) {
   }
 }
 
+interface DocumentOpenRow {
+  document_type: 'asset_version' | 'briefing'
+  document_id: string
+  founder_id: string
+  asset_id: string | null
+  program_id: string | null
+  opened_at: string
+}
+
+interface FollowUpAssetVersionRow {
+  founder_id: string
+  asset_id: string
+  authored_by: string
+  update_reason: string | null
+  created_at: string
+}
+
+interface FollowUpActionLogRow {
+  founder_id: string
+  program_id: string | null
+  status: string
+  created_at: string
+}
+
+/**
+ * Did anything happen after a founder opened a document — the follow-up half of "is this
+ * landing," not just "was it opened." An asset open counts as followed-up if the SAME founder
+ * edited that asset directly (authored_by='founder') or asked the AI to redo it ("Direct the AI"
+ * sets update_reason to 'Directed: ...' while keeping authored_by='program' — see
+ * lib/rhythm/direct.ts) within the window. A briefing open counts as followed-up if the founder
+ * approved or declined an Action on that briefing's program within the window.
+ */
+export function aggregateDocumentOpens(
+  opens: DocumentOpenRow[],
+  followUpAssetVersions: FollowUpAssetVersionRow[],
+  followUpActionLog: FollowUpActionLogRow[],
+  followUpWindowMs: number,
+) {
+  const byType: Record<string, number> = {}
+  const founders = new Set<string>()
+  let followedUp = 0
+
+  for (const open of opens) {
+    byType[open.document_type] = (byType[open.document_type] ?? 0) + 1
+    founders.add(open.founder_id)
+
+    const openedAtMs = new Date(open.opened_at).getTime()
+    const withinWindow = (createdAt: string) => {
+      const t = new Date(createdAt).getTime()
+      return t > openedAtMs && t - openedAtMs <= followUpWindowMs
+    }
+
+    const followed = open.document_type === 'asset_version'
+      ? followUpAssetVersions.some(v =>
+          v.founder_id === open.founder_id
+          && v.asset_id === open.asset_id
+          && (v.authored_by === 'founder' || (v.update_reason?.startsWith('Directed: ') ?? false))
+          && withinWindow(v.created_at))
+      // ⚠️ A null program_id correlates with NOTHING. Both columns are nullable
+      // (executive_briefings.program_id and action_log.program_id), and `null === null` is true
+      // in JS — so without this guard a briefing with no program would count as followed-up by
+      // any approved Action that also had no program, silently inflating followUpRate. That is
+      // the one number here that a retention decision would actually rest on.
+      : open.program_id !== null && followUpActionLog.some(a =>
+          a.founder_id === open.founder_id
+          && a.program_id === open.program_id
+          && (a.status === 'approved' || a.status === 'declined')
+          && withinWindow(a.created_at))
+
+    if (followed) followedUp++
+  }
+
+  return {
+    total: opens.length,
+    byType,
+    distinctFounders: founders.size,
+    followedByAction: followedUp,
+    followUpRate: opens.length > 0 ? Math.round((followedUp / opens.length) * 100) : 0,
+  }
+}
+
 export async function GET() {
   // ── Auth guard ────────────────────────────────────────────────────────────
   const auth = await verifyAdmin();
@@ -84,10 +165,16 @@ export async function GET() {
   const supabaseAdmin = createAdminClient();
 
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Document-open follow-up correlation looks back further than the other 7-day cards — an
+  // open and its follow-up action can genuinely be days apart, and 7 days was judged too
+  // narrow a window to call anything "unused" honestly.
+  const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const DOCUMENT_OPEN_FOLLOW_UP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
   const [ragResult, toolResult, qscoreResult, cacheResult, activityResult,
          founderResult, qscoreAllResult, snapshotResult, aiUsageResult,
-         rhythmRunResult, actionLogResult] = await Promise.all([
+         rhythmRunResult, actionLogResult,
+         documentOpenResult, followUpAssetVersionsResult, followUpActionLogResult] = await Promise.all([
     supabaseAdmin.from('rag_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('tool_execution_logs').select('*').gte('created_at', since),
     supabaseAdmin.from('qscore_history').select('overall_score, data_source, created_at').gte('created_at', since),
@@ -113,6 +200,18 @@ export async function GET() {
       .gte('started_at', since),
     // The real record of Action attempts — internal analyses and connector sends alike
     supabaseAdmin.from('action_log').select('status, provider, irreversible, created_at').gte('created_at', since),
+    // Document/briefing opens (Feature A) — real usage of what the Executive produces, and
+    // whether anything followed. See the aggregateDocumentOpens doc comment above.
+    supabaseAdmin.from('document_open_events')
+      .select('document_type, document_id, founder_id, asset_id, program_id, opened_at')
+      .gte('opened_at', since30),
+    supabaseAdmin.from('asset_versions')
+      .select('founder_id, asset_id, authored_by, update_reason, created_at')
+      .gte('created_at', since30),
+    supabaseAdmin.from('action_log')
+      .select('founder_id, program_id, status, created_at')
+      .in('status', ['approved', 'declined'])
+      .gte('created_at', since30),
   ]);
 
   const ragLogs = ragResult.data ?? [];
@@ -288,6 +387,12 @@ export async function GET() {
   // ── Aggregate rhythm-run and action-log metrics ───────────────────────────
   const rhythmMetrics = aggregateRhythmRuns((rhythmRunResult.data ?? []) as RhythmRunRow[], Date.now())
   const actionMetrics = aggregateActionLog((actionLogResult.data ?? []) as ActionLogRow[])
+  const documentOpenMetrics = aggregateDocumentOpens(
+    (documentOpenResult.data ?? []) as DocumentOpenRow[],
+    (followUpAssetVersionsResult.data ?? []) as FollowUpAssetVersionRow[],
+    (followUpActionLogResult.data ?? []) as FollowUpActionLogRow[],
+    DOCUMENT_OPEN_FOLLOW_UP_WINDOW_MS,
+  )
 
   // ── Build response ────────────────────────────────────────────────────────
   return NextResponse.json({
@@ -335,6 +440,7 @@ export async function GET() {
     },
     rhythm: { windowDays: 7, ...rhythmMetrics },
     actions: { windowDays: 7, ...actionMetrics },
+    documentOpens: { windowDays: 30, followUpWindowDays: 7, ...documentOpenMetrics },
     aiUsage: {
       windowDays: 7,
       totalCalls: aiUsageTotal,
